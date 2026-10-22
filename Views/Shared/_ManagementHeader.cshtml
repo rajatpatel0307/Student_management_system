@@ -1,0 +1,35 @@
+@model Student_Management_System.Models.ManagementHeaderViewModel
+@{
+    var routeData = ViewContext.HttpContext.Request.Query
+        .ToDictionary(x => x.Key, x => x.Value.ToString());
+}
+<div class="page-header management-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">@Model.Eyebrow</span>
+        <h1>@Model.Title</h1>
+        <p>@Model.Description</p>
+        @if (!string.IsNullOrWhiteSpace(Model.PeriodLabel))
+        {
+            <span class="period-indicator"><i class="fa-regular fa-calendar"></i> @Model.PeriodLabel</span>
+        }
+    </div>
+    <div class="page-actions">
+        <button type="button" class="btn btn-outline-secondary" data-reload-page title="Refresh this page">
+            <i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Refresh</span>
+        </button>
+        @if (!string.IsNullOrWhiteSpace(Model.ExportAction))
+        {
+            <a asp-controller="@Model.ExportController" asp-action="@Model.ExportAction"
+               asp-all-route-data="@routeData"
+               class="btn btn-outline-secondary">
+                <i class="fa-solid fa-file-export" aria-hidden="true"></i><span>Export</span>
+            </a>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.PrimaryAction))
+        {
+            <a asp-controller="@Model.PrimaryController" asp-action="@Model.PrimaryAction" class="btn btn-primary">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i><span>@Model.PrimaryLabel</span>
+            </a>
+        }
+    </div>
+</div>

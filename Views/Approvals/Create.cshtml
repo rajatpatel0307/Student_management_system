@@ -1,0 +1,16 @@
+@model Student_Management_System.Models.CreateApprovalRequestViewModel
+@{
+    ViewData["Title"] = "New approval request";
+    var workflows = ViewBag.WorkflowTypes as IEnumerable<string> ?? [];
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Workflows</span><h1>New approval request</h1><p>Approvers and their order are assigned by the server for the selected workflow.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<section class="card section-card">
+    <form method="post" class="row g-3">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <div class="col-md-6"><label asp-for="WorkflowType" class="form-label"></label><select asp-for="WorkflowType" class="form-select" required><option value="">Select workflow</option>@foreach(var workflow in workflows){<option value="@workflow">@workflow</option>}</select><span asp-validation-for="WorkflowType" class="text-danger"></span></div>
+        <div class="col-md-6"><label asp-for="EntityId" class="form-label">Target record ID</label><input asp-for="EntityId" class="form-control" /><span asp-validation-for="EntityId" class="text-danger"></span><div class="form-text">The server selects and validates the target record type from the workflow.</div></div>
+        <div class="col-12"><label asp-for="Reason" class="form-label"></label><textarea asp-for="Reason" class="form-control" rows="5" placeholder="Explain the requested exception or decision"></textarea><span asp-validation-for="Reason" class="text-danger"></span></div>
+        <div class="col-12 d-flex justify-content-end"><button class="btn btn-primary">Submit request</button></div>
+    </form>
+</section>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

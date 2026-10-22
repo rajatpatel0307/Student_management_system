@@ -1,0 +1,9 @@
+@model Student_Management_System.Models.GuardianProfile
+@{ ViewData["Title"]="Guardian dashboard"; }
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Family portal</span><h1>Welcome, @Model.FullName</h1></div></div>
+<div class="metric-grid mb-3"><article class="metric-card"><span class="metric-label">Linked students</span><strong class="metric-value">@Model.StudentLinks.Count</strong></article><article class="metric-card info"><span class="metric-label">Relationship</span><strong class="metric-value fs-4">@Model.Relationship</strong></article></div>
+<div class="row g-3">
+@foreach(var link in Model.StudentLinks){
+<div class="col-lg-6"><article class="card section-card h-100"><div class="d-flex align-items-center gap-3"><span class="avatar">@string.Concat(link.Student.FullName.Split(' ',StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p=>p[0]))</span><div class="flex-grow-1"><h2 class="h5 mb-1">@link.Student.FullName</h2><p class="text-muted mb-0">@link.Student.Class?.Name · Section @link.Student.Section?.Name</p></div><span class="badge bg-success">Linked</span></div><div class="mt-3"><a asp-action="Student" asp-route-id="@link.StudentId" class="btn btn-primary">Open student profile</a></div></article></div>}
+@if(Model.StudentLinks.Count==0){<div class="col-12"><partial name="_EmptyRecords" model="@(("No linked students","Ask an administrator to verify and link your guardian account.",(string?)null,(string?)null))" /></div>}
+</div>

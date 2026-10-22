@@ -1,0 +1,29 @@
+@model ApplicationUser
+@{
+    ViewData["Title"] = "My profile";
+    var roles = ViewBag.Roles as IEnumerable<string> ?? Enumerable.Empty<string>();
+    var role = roles.FirstOrDefault() ?? "User";
+    var teacher = ViewBag.Teacher as Teacher;
+    var student = ViewBag.Student as Student;
+    var initials = string.Concat(Model.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Account</span><h1>My profile</h1><p>Review your identity, role and authorized academic assignments.</p></div><div class="page-actions"><a asp-controller="Account" asp-action="ChangePassword" class="btn btn-primary"><i class="fa-solid fa-key me-1"></i> Change password</a></div></div>
+<section class="card profile-hero mb-3">@if (!string.IsNullOrWhiteSpace(Model.ProfileImageStorageKey)) { <img class="avatar avatar-lg" src="@Url.Action("Image", "Profile")" alt="@Model.FullName profile image" /> } else { <span class="avatar avatar-lg">@initials</span> }<div class="profile-copy"><h2>@Model.FullName</h2><p>@role account</p><div class="profile-meta"><span><i class="fa-regular fa-envelope me-1"></i>@Model.Email</span><span><i class="fa-solid fa-phone me-1"></i>@(Model.PhoneNumber ?? "No phone")</span></div></div><span class="badge @(Model.LockoutEnd > DateTimeOffset.UtcNow ? "bg-danger" : "bg-success")"><span class="status-dot"></span>@(Model.LockoutEnd > DateTimeOffset.UtcNow ? "Inactive" : "Active")</span></section>
+<section class="card section-card mb-3"><div class="section-title-row"><div><h2>Profile image</h2><p>You may update only your own image. Official profile fields are managed by your authorized senior.</p></div></div><form asp-action="UpdateImage" method="post" enctype="multipart/form-data" class="row g-3 align-items-end"><div class="col-md-8"><label class="form-label required" for="profileImage">JPEG, PNG, or WebP</label><input id="profileImage" name="image" type="file" accept=".jpg,.jpeg,.png,.webp" class="form-control" required /><div class="form-text">Maximum 5 MB; the server validates and re-encodes the image.</div></div><div class="col-md-4"><button class="btn btn-primary w-100" type="submit">Update my image</button></div></form>@if (!string.IsNullOrWhiteSpace(Model.ProfileImageStorageKey)) { <form asp-action="RemoveImage" method="post" class="mt-3"><button class="btn btn-outline-danger" type="submit" data-confirm="Remove your current profile image?">Remove image</button></form> }</section>
+<div class="row g-3">
+    <div class="col-lg-6"><section class="card section-card h-100"><div class="section-title-row"><div><h2>Account information</h2><p>Login and security details</p></div><span class="metric-icon"><i class="fa-regular fa-id-card"></i></span></div><div class="detail-grid"><div class="detail-item"><small>Full name</small><strong>@Model.FullName</strong></div><div class="detail-item"><small>Role</small><strong>@role</strong></div><div class="detail-item"><small>Email</small><strong>@Model.Email</strong></div><div class="detail-item"><small>Email status</small><strong>@(Model.EmailConfirmed ? "Verified" : "Not verified")</strong></div><div class="detail-item"><small>Phone</small><strong>@(Model.PhoneNumber ?? "Not provided")</strong></div>@if (User.IsInRole("SuperAdmin") || User.IsInRole("Admin")) { <div class="detail-item"><small>Two-factor authentication</small><strong>@(Model.TwoFactorEnabled ? "Enabled" : "Not enabled")</strong></div> }</div></section></div>
+    <div class="col-lg-6"><section class="card section-card h-100"><div class="section-title-row"><div><h2>Academic or employment details</h2><p>Information visible for your role</p></div><span class="metric-icon"><i class="fa-solid fa-building-columns"></i></span></div>
+    @if (teacher != null)
+    {
+        <div class="detail-grid"><div class="detail-item"><small>Teacher type</small><strong>@teacher.TeacherType</strong></div><div class="detail-item"><small>Department</small><strong>@(teacher.Department?.Name ?? "Unassigned")</strong></div><div class="detail-item"><small>Qualification</small><strong>@teacher.Qualification</strong></div><div class="detail-item"><small>Assigned classes</small><strong>@teacher.ClassAssignments.Count</strong></div><div class="detail-item"><small>Assigned subjects</small><strong>@teacher.SubjectAssignments.Count</strong></div><div class="detail-item"><small>Employee profile</small><strong>#@teacher.Id</strong></div></div>
+    }
+    else if (student != null)
+    {
+        <div class="detail-grid"><div class="detail-item"><small>Department</small><strong>@(student.Department?.Name ?? "Unassigned")</strong></div><div class="detail-item"><small>Semester</small><strong>@(student.Semester?.Name ?? "Unassigned")</strong></div><div class="detail-item"><small>Class</small><strong>@(student.Class?.Name ?? "Unassigned")</strong></div><div class="detail-item"><small>Section</small><strong>@(student.Section?.Name ?? "Unassigned")</strong></div><div class="detail-item"><small>Date of birth</small><strong>@student.DOB.ToString("dd MMM yyyy")</strong></div><div class="detail-item"><small>Student profile</small><strong>#@student.Id</strong></div></div>
+    }
+    else
+    {
+        <div class="empty-state"><span class="empty-state-icon"><i class="fa-regular fa-id-card"></i></span><h3>System account</h3><p>This role does not require a Student or Teacher profile.</p></div>
+    }
+    </section></div>
+</div>

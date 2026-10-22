@@ -1,0 +1,7 @@
+@{ ViewData["Title"]="Workspace"; }
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">EduFlow ERP</span><h1>Your workspace</h1><p>Open the permission-aware modules assigned to your account.</p></div></div>
+<div class="row g-3">
+    <div class="col-md-6 col-xl-4"><a asp-controller="Notifications" asp-action="Index" class="card section-card h-100 text-decoration-none"><span class="notification-icon info"><i class="fa-regular fa-bell"></i></span><h2 class="h5 mt-3">Notifications</h2><p class="text-muted mb-0">Review personal tasks and system updates.</p></a></div>
+    <div class="col-md-6 col-xl-4"><a asp-controller="Leave" asp-action="Index" class="card section-card h-100 text-decoration-none"><span class="notification-icon warning"><i class="fa-solid fa-calendar-minus"></i></span><h2 class="h5 mt-3">Leave management</h2><p class="text-muted mb-0">Submit and track leave requests.</p></a></div>
+    <div class="col-md-6 col-xl-4"><a asp-controller="Search" asp-action="Index" class="card section-card h-100 text-decoration-none"><span class="notification-icon info"><i class="fa-solid fa-magnifying-glass"></i></span><h2 class="h5 mt-3">Global search</h2><p class="text-muted mb-0">Search records available to your permissions.</p></a></div>
+</div>

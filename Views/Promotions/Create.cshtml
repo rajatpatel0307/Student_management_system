@@ -1,0 +1,26 @@
+@model Student_Management_System.Models.CreatePromotionBatchInput
+@{
+    ViewData["Title"] = "Create promotion batch";
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Academic lifecycle</span><h1>Create promotion batch</h1><p>Select the source cohort and its destination. No student record changes until final approval and application.</p></div></div>
+<form method="post" data-track-changes>
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <section class="card section-card">
+        <div class="section-title-row"><div><h2>Source cohort</h2><p>Students are loaded from active historical enrollment records.</p></div></div>
+        <div class="row g-3">
+            <div class="col-md-6"><label asp-for="SourceAcademicYearId" class="form-label required">Current academic year</label><select asp-for="SourceAcademicYearId" asp-items="ViewBag.Years" class="form-select" required><option value="">Select year</option></select></div>
+            <div class="col-md-6"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" asp-items="ViewBag.Departments" class="form-select"><option value="">All / inferred from class</option></select></div>
+            <div class="col-md-6"><label asp-for="SourceClassId" class="form-label required">Current class</label><select asp-for="SourceClassId" asp-items="ViewBag.Classes" class="form-select" required><option value="">Select class</option></select></div>
+            <div class="col-md-6"><label asp-for="SourceSectionId" class="form-label required">Current section</label><select asp-for="SourceSectionId" asp-items="ViewBag.Sections" class="form-select" required data-dependent-parent="#SourceClassId" data-dependent-url="/api/lookups/sections?classId={value}" data-placeholder="Select section"><option value="">Select section</option></select></div>
+        </div>
+    </section>
+    <section class="card section-card mt-3">
+        <div class="section-title-row"><div><h2>Destination</h2><p>Class and section are required only for students marked Promoted.</p></div></div>
+        <div class="row g-3">
+            <div class="col-md-4"><label asp-for="DestinationAcademicYearId" class="form-label required">Destination year</label><select asp-for="DestinationAcademicYearId" asp-items="ViewBag.Years" class="form-select" required><option value="">Select year</option></select></div>
+            <div class="col-md-4"><label asp-for="DestinationClassId" class="form-label">Destination class</label><select asp-for="DestinationClassId" asp-items="ViewBag.Classes" class="form-select"><option value="">Not applicable</option></select></div>
+            <div class="col-md-4"><label asp-for="DestinationSectionId" class="form-label">Destination section</label><select asp-for="DestinationSectionId" asp-items="ViewBag.Sections" class="form-select" data-dependent-parent="#DestinationClassId" data-dependent-url="/api/lookups/sections?classId={value}" data-placeholder="Select section"><option value="">Not applicable</option></select></div>
+        </div>
+    </section>
+    <div class="sticky-form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit">Load eligible students</button></div>
+</form>

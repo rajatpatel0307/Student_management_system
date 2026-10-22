@@ -1,0 +1,44 @@
+@model IReadOnlyList<Student_Management_System.Models.ArchivedRecordViewModel>
+@{
+    ViewData["Title"] = "Archived records";
+}
+<div class="page-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">Data governance</span>
+        <h1>Archived records</h1>
+        <p>Restore retired records without losing attendance, marks, finance, admission, or audit history.</p>
+    </div>
+</div>
+<section class="card table-card">
+    @if (Model.Count == 0)
+    {
+        <partial name="_EmptyRecords" model="@(("" + "No archived records", "Archived academic and people records will appear here.", "", ""))" />
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table">
+                <thead><tr><th>Type</th><th>Record</th><th>Archived</th><th>Reason</th><th class="text-end">Action</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td><span class="badge bg-secondary">@item.Entity</span></td>
+                        <td>@item.Name</td>
+                        <td>@(item.ArchivedUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—")</td>
+                        <td>@(item.Reason ?? "Not recorded")</td>
+                        <td class="text-end">
+                            <form asp-action="Set" method="post">
+                                <input type="hidden" name="entity" value="@item.Entity" />
+                                <input type="hidden" name="id" value="@item.Id" />
+                                <input type="hidden" name="archived" value="false" />
+                                <button class="btn btn-sm btn-outline-primary" data-confirm="Restore this record?">Restore</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

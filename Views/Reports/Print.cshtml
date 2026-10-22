@@ -1,0 +1,47 @@
+@model Student_Management_System.Services.ReportDataset
+@{
+    Layout = null;
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@Model.Title · EduFlow</title>
+    <link rel="stylesheet" href="~/css/report-print.css" asp-append-version="true" />
+</head>
+<body>
+    <a class="report-skip" href="#report-content">Skip to report</a>
+    <div class="report-toolbar">
+        <a asp-controller="Reports" asp-action="Index" class="report-back">Back to reports</a>
+        <button type="button" data-print-page>Print or save as PDF</button>
+    </div>
+    <main class="report-document" id="report-content" tabindex="-1">
+        <header class="report-heading">
+            <span class="report-brand">EduFlow <span>Reports &amp; analytics</span></span>
+            <h1>@Model.Title</h1>
+            <p>@Model.ScopeDescription</p>
+            <div class="report-meta">
+                <span>Generated <time datetime="@DateTime.UtcNow.ToString("O")">@DateTime.UtcNow.ToString("dd MMM yyyy, HH:mm") UTC</time></span>
+                <span>@Model.Rows.Count rows</span>
+            </div>
+        </header>
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="report-empty"><h2>No matching records</h2><p>Return to reports and adjust the filters to view another set of records.</p></div>
+        }
+        else
+        {
+            <div class="report-table-region" role="region" aria-label="Report data. Scroll horizontally to see all columns." tabindex="0">
+                <table>
+                    <caption>@Model.Title · @Model.Rows.Count rows</caption>
+                    <thead><tr>@foreach (var header in Model.Headers) { <th scope="col">@header</th> }</tr></thead>
+                    <tbody>@foreach (var row in Model.Rows) { <tr>@foreach (var value in row) { <td>@value</td> }</tr> }</tbody>
+                </table>
+            </div>
+        }
+        <footer class="report-footer">EduFlow · Institutional report</footer>
+    </main>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+</body>
+</html>

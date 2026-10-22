@@ -1,0 +1,234 @@
+@model Student_Management_System.Models.PagedResult<Student_Management_System.Models.FinancialTransaction>
+@using Student_Management_System.Models
+@{
+    ViewData["Title"] = "Finance ledger";
+    var request = ViewContext.HttpContext.Request;
+    var query = request.Query;
+    FinancialTransactionType? selectedType =
+        ViewBag.Type is FinancialTransactionType typeValue ? typeValue : null;
+    var selectedMethod = ViewBag.PaymentMethod as string;
+    var paymentMethods = ViewBag.PaymentMethods as IEnumerable<string> ?? [];
+    var from = query["from"].ToString();
+    var to = query["to"].ToString();
+
+    string SortUrl(string column)
+    {
+        var values = query.ToDictionary(x => x.Key, x => (string?)x.Value.ToString());
+        values["sort"] = column;
+        values["direction"] = Model.Sort == column && Model.Direction == "asc" ? "desc" : "asc";
+        values["page"] = "1";
+        return request.Path.ToString() + Microsoft.AspNetCore.Http.QueryString.Create(values).ToString();
+    }
+}
+
+<div class="page-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">Fees &amp; finance</span>
+        <h1>Transaction ledger</h1>
+        <p>Search, reconcile, export, and review immutable payment and reversal records.</p>
+    </div>
+    <div class="page-actions">
+        <a asp-action="Export"
+           asp-route-search="@Model.Search"
+           asp-route-type="@selectedType"
+           asp-route-paymentMethod="@selectedMethod"
+           asp-route-from="@from"
+           asp-route-to="@to"
+           class="btn btn-outline-secondary">
+            <i class="fa-solid fa-file-csv"></i> Export CSV
+        </a>
+        <a asp-controller="Fee" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-list-check"></i> Fee structures
+        </a>
+        <a asp-action="Collect" class="btn btn-primary">
+            <i class="fa-solid fa-cash-register"></i> Collect payment
+        </a>
+    </div>
+</div>
+
+<div class="metric-grid mb-3">
+    <article class="metric-card success">
+        <span class="metric-label">Today’s net</span>
+        <strong class="metric-value">@(((decimal)ViewBag.Today).ToString("C"))</strong>
+        <span class="metric-note">Current filtered results</span>
+    </article>
+    <article class="metric-card info">
+        <span class="metric-label">Gross payments</span>
+        <strong class="metric-value">@(((decimal)ViewBag.Gross).ToString("C"))</strong>
+        <span class="metric-note">Before refunds and reversals</span>
+    </article>
+    <article class="metric-card">
+        <span class="metric-label">Net collection</span>
+        <strong class="metric-value">@(((decimal)ViewBag.Net).ToString("C"))</strong>
+        <span class="metric-note">@Model.TotalCount matching records</span>
+    </article>
+    <article class="metric-card warning">
+        <span class="metric-label">Refunds &amp; reversals</span>
+        <strong class="metric-value">@(((decimal)ViewBag.Reversals).ToString("C"))</strong>
+        <span class="metric-note">Value removed from collection</span>
+    </article>
+</div>
+
+<form method="get" class="card filter-panel" role="search" aria-label="Finance ledger filters">
+    <div class="filter-panel-grid">
+        <div>
+            <label class="form-label" for="finance-search">Search ledger</label>
+            <div class="input-icon">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input id="finance-search" name="search" value="@Model.Search" class="form-control"
+                       placeholder="Receipt, Student, email, fee or reference" autocomplete="off" />
+            </div>
+        </div>
+        <div>
+            <label class="form-label" for="finance-type">Transaction type</label>
+            <select id="finance-type" name="type" class="form-select">
+                <option value="">All types</option>
+                @foreach (var type in Enum.GetValues<FinancialTransactionType>())
+                {
+                    <option value="@type" selected="@(selectedType == type)">@type</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="finance-method">Payment method</label>
+            <select id="finance-method" name="paymentMethod" class="form-select">
+                <option value="">All methods</option>
+                @foreach (var method in paymentMethods)
+                {
+                    <option value="@method" selected="@(selectedMethod == method)">@method</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="finance-from">From date</label>
+            <input id="finance-from" type="date" name="from" value="@from" class="form-control" />
+        </div>
+        <div>
+            <label class="form-label" for="finance-to">To date</label>
+            <input id="finance-to" type="date" name="to" value="@to" class="form-control" />
+        </div>
+        <div class="filter-actions">
+            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-filter"></i> Apply</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Reset</a>
+        </div>
+    </div>
+    <input type="hidden" name="sort" value="@Model.Sort" />
+    <input type="hidden" name="direction" value="@Model.Direction" />
+    @if (!string.IsNullOrWhiteSpace(Model.Search) || selectedType.HasValue ||
+         !string.IsNullOrWhiteSpace(selectedMethod) || !string.IsNullOrWhiteSpace(from) ||
+         !string.IsNullOrWhiteSpace(to))
+    {
+        <div class="active-filters" aria-live="polite">
+            @if (!string.IsNullOrWhiteSpace(Model.Search))
+            {
+                <span class="filter-chip"><i class="fa-solid fa-magnifying-glass"></i> “@Model.Search”</span>
+            }
+            @if (selectedType.HasValue)
+            {
+                <span class="filter-chip"><i class="fa-solid fa-tag"></i> @selectedType</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(selectedMethod))
+            {
+                <span class="filter-chip"><i class="fa-solid fa-credit-card"></i> @selectedMethod</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(from) || !string.IsNullOrWhiteSpace(to))
+            {
+                <span class="filter-chip"><i class="fa-regular fa-calendar"></i> @from – @to</span>
+            }
+        </div>
+    }
+</form>
+
+<section class="card table-card">
+    <div class="table-toolbar">
+        <div class="table-toolbar-start">
+            <strong>@Model.TotalCount transaction records</strong>
+            <span class="badge bg-info">Immutable ledger</span>
+        </div>
+        <div class="table-toolbar-end">
+            <form method="get">
+                <input type="hidden" name="search" value="@Model.Search" />
+                <input type="hidden" name="type" value="@selectedType" />
+                <input type="hidden" name="paymentMethod" value="@selectedMethod" />
+                <input type="hidden" name="from" value="@from" />
+                <input type="hidden" name="to" value="@to" />
+                <input type="hidden" name="sort" value="@Model.Sort" />
+                <input type="hidden" name="direction" value="@Model.Direction" />
+                <label class="visually-hidden" for="finance-page-size">Rows per page</label>
+                <select id="finance-page-size" name="pageSize" class="form-select" data-submit-on-change>
+                    @foreach (var size in new[] { 10, 20, 50, 100 })
+                    {
+                        <option value="@size" selected="@(Model.PageSize == size)">@size per page</option>
+                    }
+                </select>
+            </form>
+        </div>
+    </div>
+
+    @if (Model.Items.Count == 0)
+    {
+        <partial name="_EmptyRecords"
+                 model="@(("No transactions found", "Change the filters or record the first payment.", "Collect", "Collect payment"))" />
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover finance-table" data-enhanced="true">
+                <thead>
+                    <tr>
+                        <th><a class="sortable" href="@SortUrl("receipt")">Receipt <i class="fa-solid fa-sort"></i></a></th>
+                        <th><a class="sortable" href="@SortUrl("student")">Student <i class="fa-solid fa-sort"></i></a></th>
+                        <th>Fee</th>
+                        <th>Type</th>
+                        <th>Method</th>
+                        <th><a class="sortable" href="@SortUrl("date")">Date <i class="fa-solid fa-sort"></i></a></th>
+                        <th class="text-end"><a class="sortable" href="@SortUrl("amount")">Amount <i class="fa-solid fa-sort"></i></a></th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        var initials = string.Concat(item.Student.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                            .Take(2).Select(x => char.ToUpperInvariant(x[0])));
+                        var badgeClass = item.Type == FinancialTransactionType.Payment ? "bg-success" :
+                            item.Type == FinancialTransactionType.Reversal ? "bg-danger" : "bg-warning";
+                        <tr>
+                            <td>
+                                <a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.ReceiptNumber</a>
+                                <small class="d-block text-muted">@(item.TransactionReference ?? "No external reference")</small>
+                            </td>
+                            <td>
+                                <div class="attendance-person">
+                                    <span class="avatar avatar-sm">@initials</span>
+                                    <span class="activity-copy">
+                                        <a asp-action="Ledger" asp-route-studentId="@item.StudentId" class="record-link">@item.Student.FullName</a>
+                                        <small>@item.Student.Email · @(item.Student.Class?.Name ?? "No class")</small>
+                                    </span>
+                                </div>
+                            </td>
+                            <td>@item.Fee.Term<small class="d-block text-muted">Due @item.Fee.DueDate.ToString("dd MMM yyyy")</small></td>
+                            <td><span class="badge @badgeClass"><span class="status-dot"></span>@item.Type</span></td>
+                            <td>@item.PaymentMethod</td>
+                            <td>@item.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy")<small class="d-block text-muted">@item.CreatedUtc.ToLocalTime().ToString("HH:mm")</small></td>
+                            <td class="text-end @(item.Amount < 0 ? "amount-negative" : "amount-positive")">
+                                <strong>@item.Amount.ToString("C")</strong>
+                            </td>
+                            <td>
+                                <div class="table-actions">
+                                    <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" title="View receipt">
+                                        <i class="fa-regular fa-eye"></i><span class="visually-hidden">View @item.ReceiptNumber</span>
+                                    </a>
+                                    <a asp-action="Ledger" asp-route-studentId="@item.StudentId" class="btn btn-sm btn-outline-secondary" title="Student ledger">
+                                        <i class="fa-solid fa-book-open"></i><span class="visually-hidden">Open Student ledger</span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_ServerPagination" model="Model" />
+    }
+</section>

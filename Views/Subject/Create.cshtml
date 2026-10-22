@@ -1,0 +1,10 @@
+@model SubjectViewModel
+@{ ViewData["Title"] = "Add subject"; }
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Curriculum</span><h1>Add subject</h1><p>Create a subject and connect it to its class and academic hierarchy.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form asp-action="Create" method="post" novalidate><div asp-validation-summary="All"></div><div class="row g-3">
+<div class="col-12"><label asp-for="Name" class="form-label required">Subject name</label><input asp-for="Name" class="form-control" placeholder="e.g. Data Structures" required /><span asp-validation-for="Name"></span></div>
+<div class="col-md-6"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" asp-items="Model.Departments" class="form-select"><option value="">Select department</option></select></div>
+<div class="col-md-6"><label asp-for="SemesterId" class="form-label">Semester</label><select asp-for="SemesterId" asp-items="Model.Semesters" class="form-select"><option value="">Select semester</option></select></div>
+<div class="col-md-6"><label asp-for="ClassId" class="form-label required">Class</label><select asp-for="ClassId" asp-items="Model.Classes" class="form-select" required><option value="">Select class</option></select><span asp-validation-for="ClassId"></span></div>
+<div class="col-md-6"><label asp-for="TeacherId" class="form-label">Primary Teacher</label><select asp-for="TeacherId" asp-items="Model.Teachers" class="form-select"><option value="">Assign later</option></select><span asp-validation-for="TeacherId"></span></div>
+</div><div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit">Create subject</button></div></form></div>

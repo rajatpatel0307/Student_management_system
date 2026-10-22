@@ -1,0 +1,35 @@
+@model Teacher
+@{
+    ViewData["Title"] = $"Edit {Model.FullName}";
+    var departments = ViewBag.Departments as IEnumerable<Department> ?? Enumerable.Empty<Department>();
+    var classes = ViewBag.Classes as IEnumerable<Class> ?? Enumerable.Empty<Class>();
+    var subjects = ViewBag.Subjects as IEnumerable<Subject> ?? Enumerable.Empty<Subject>();
+    var selectedClasses = ViewBag.SelectedClassIds as HashSet<int> ?? new HashSet<int>();
+    var selectedSubjects = ViewBag.SelectedSubjectIds as HashSet<int> ?? new HashSet<int>();
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Faculty / HOD / Edit</span><h1>Edit @Model.FullName</h1><p>Update an eligible HOD in your campus. Role, campus and department are protected.</p></div><div class="page-actions"><a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Back to details</a></div></div>
+<form asp-action="Edit" asp-route-id="@Model.Id" method="post" novalidate data-track-changes class="edit-shell">
+    <input asp-for="Id" type="hidden" /><input asp-for="RowVersion" type="hidden" />
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <section class="edit-section">
+        <div class="edit-section-header"><span class="edit-section-icon"><i class="fa-regular fa-id-card"></i></span><div><h2>Profile and employment</h2><p>Only approved identity fields are editable.</p></div></div>
+        <div class="row g-3">
+            <div class="col-md-6"><label asp-for="FullName" class="form-label required"></label><input asp-for="FullName" class="form-control" required /><span asp-validation-for="FullName"></span></div>
+            <div class="col-md-6"><label asp-for="Qualification" class="form-label required"></label><input asp-for="Qualification" class="form-control" required /><span asp-validation-for="Qualification"></span></div>
+            <div class="col-md-6"><label asp-for="Email" class="form-label required"></label><input asp-for="Email" type="email" class="form-control" required /><span asp-validation-for="Email"></span></div>
+            <div class="col-md-6"><label asp-for="Phone" class="form-label required"></label><input asp-for="Phone" type="tel" class="form-control" required /><span asp-validation-for="Phone"></span></div>
+            <div class="col-md-6"><label class="form-label">Role</label><input value="HOD" class="form-control" disabled /></div>
+            <div class="col-md-6"><label class="form-label">Department</label><input value="@(departments.SingleOrDefault(d => d.Id == Model.DepartmentId)?.Name ?? "Unassigned")" class="form-control" disabled /></div>
+        </div>
+    </section>
+    <section class="edit-section">
+        <div class="edit-section-header"><span class="edit-section-icon"><i class="fa-solid fa-school"></i></span><div><h2>Assigned classes</h2><p>Select every class this Teacher is authorized to access.</p></div></div>
+        <div class="selection-grid">@foreach (var item in classes) { <label class="selection-card"><input type="checkbox" name="ClassIds" value="@item.Id" checked="@selectedClasses.Contains(item.Id)" /><span><strong>@item.Name</strong><small>@(item.Department?.Name ?? "No department")</small></span></label> }</div>
+    </section>
+    <section class="edit-section">
+        <div class="edit-section-header"><span class="edit-section-icon"><i class="fa-solid fa-book"></i></span><div><h2>Assigned subjects</h2><p>Duplicate assignments are prevented by the database and backend validation.</p></div></div>
+        <div class="selection-grid">@foreach (var item in subjects) { <label class="selection-card"><input type="checkbox" name="SubjectIds" value="@item.Id" checked="@selectedSubjects.Contains(item.Id)" /><span><strong>@item.Name</strong><small>@item.Class.Name</small></span></label> }</div>
+    </section>
+    <div class="sticky-form-actions"><a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a><div><button class="btn btn-outline-secondary" type="reset">Reset</button><button class="btn btn-primary" type="submit" data-confirm="Save this HOD profile and assignment update?">Save changes</button></div></div>
+</form>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -1,0 +1,8 @@
+@model Student_Management_System.Models.AdmissionApplicationInput
+@{ ViewData["Title"]="New admission application"; }
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Admissions</span><h1>New application</h1><p>Register an online or offline applicant in the controlled admission workflow.</p></div></div>
+<form asp-action="Create" method="post" data-track-changes>
+    <partial name="_Form" model="Model" />
+    <div class="sticky-form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit" data-loading-text="Creating…"><i class="fa-solid fa-floppy-disk"></i> Create application</button></div>
+</form>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -1,0 +1,201 @@
+@model Student_Management_System.Models.PagedResult<Student_Management_System.Models.FinancialTransaction>
+@using Student_Management_System.Models
+@{
+    ViewData["Title"] = "Student fee ledger";
+    var student = (Student)ViewBag.Student;
+    var charges = ViewBag.Charges as IEnumerable<Fee> ?? [];
+    var paidByFee = ViewBag.PaidByFee as IReadOnlyDictionary<int, decimal> ?? new Dictionary<int, decimal>();
+    FinancialTransactionType? selectedType =
+        ViewBag.Type is FinancialTransactionType typeValue ? typeValue : null;
+    var query = ViewContext.HttpContext.Request.Query;
+    var from = query["from"].ToString();
+    var to = query["to"].ToString();
+    var canCollect = User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Accountant");
+    var charged = charges.Sum(f => f.Amount);
+    var paid = (decimal)ViewBag.NetPaid;
+    var balance = Math.Max(0m, charged - paid);
+    var overdue = charges.Count(f => f.DueDate.Date < DateTime.Today &&
+        (!paidByFee.TryGetValue(f.Id, out var feePaid) || feePaid < f.Amount));
+}
+
+<div class="page-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">Finance / Student ledger</span>
+        <h1>@student.FullName</h1>
+        <p>@(student.Class?.Name ?? "No class") · @student.Email · Student ID #@student.Id</p>
+    </div>
+    <div class="page-actions">
+        <a asp-action="Index" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left"></i> Finance ledger</a>
+        @if (canCollect)
+        {
+            <a asp-action="Collect" asp-route-studentId="@student.Id" class="btn btn-primary">
+                <i class="fa-solid fa-cash-register"></i> Collect payment
+            </a>
+        }
+    </div>
+</div>
+
+<div class="metric-grid mb-3">
+    <article class="metric-card">
+        <span class="metric-label">Assigned charges</span>
+        <strong class="metric-value">@charged.ToString("C")</strong>
+        <span class="metric-note">@charges.Count() fee items</span>
+    </article>
+    <article class="metric-card success">
+        <span class="metric-label">Net paid</span>
+        <strong class="metric-value">@paid.ToString("C")</strong>
+        <span class="metric-note">@ViewBag.PaymentCount successful payments</span>
+    </article>
+    <article class="metric-card @(balance > 0 ? "warning" : "success")">
+        <span class="metric-label">Outstanding balance</span>
+        <strong class="metric-value">@balance.ToString("C")</strong>
+        <span class="metric-note">Charges minus net transactions</span>
+    </article>
+    <article class="metric-card @(overdue > 0 ? "warning" : "info")">
+        <span class="metric-label">Overdue fee items</span>
+        <strong class="metric-value">@overdue</strong>
+        <span class="metric-note">Past due with an outstanding amount</span>
+    </article>
+</div>
+
+<section class="card table-card mb-3">
+    <div class="section-title-row p-3">
+        <div>
+            <h2>Fee schedule</h2>
+            <p>Assigned charges and net payment allocation by fee.</p>
+        </div>
+    </div>
+    @if (!charges.Any())
+    {
+        <div class="empty-state">
+            <span class="empty-state-icon"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+            <h3>No fee structure assigned</h3>
+            <p>Create a fee for this Student’s class before collecting payment.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table fee-schedule-table" data-enhanced="true">
+                <thead><tr><th>Fee</th><th>Due date</th><th>Status</th><th class="text-end">Charge</th><th class="text-end">Net paid</th><th class="text-end">Outstanding</th></tr></thead>
+                <tbody>
+                    @foreach (var fee in charges)
+                    {
+                        var feePaid = paidByFee.TryGetValue(fee.Id, out var allocated) ? allocated : 0m;
+                        var outstanding = Math.Max(0m, fee.Amount - feePaid);
+                        var status = outstanding == 0 ? "Paid" : feePaid > 0 ? "Partial" :
+                            fee.DueDate.Date < DateTime.Today ? "Overdue" : "Upcoming";
+                        var statusClass = status == "Paid" ? "bg-success" : status == "Overdue" ? "bg-danger" :
+                            status == "Partial" ? "bg-warning" : "bg-info";
+                        <tr>
+                            <td><strong>@fee.Term</strong><small class="d-block text-muted">@(fee.Class?.Name ?? student.Class?.Name)</small></td>
+                            <td>@fee.DueDate.ToString("dd MMM yyyy")</td>
+                            <td><span class="badge @statusClass"><span class="status-dot"></span>@status</span></td>
+                            <td class="text-end">@fee.Amount.ToString("C")</td>
+                            <td class="text-end amount-positive">@feePaid.ToString("C")</td>
+                            <td class="text-end @(outstanding > 0 ? "amount-negative" : "amount-positive")"><strong>@outstanding.ToString("C")</strong></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<form method="get" class="card filter-panel" role="search" aria-label="Student transaction filters">
+    <input type="hidden" name="studentId" value="@student.Id" />
+    <div class="filter-panel-grid">
+        <div>
+            <label class="form-label" for="ledger-search">Search transactions</label>
+            <div class="input-icon">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input id="ledger-search" name="search" value="@Model.Search" class="form-control"
+                       placeholder="Receipt, fee, method or reference" autocomplete="off" />
+            </div>
+        </div>
+        <div>
+            <label class="form-label" for="ledger-type">Transaction type</label>
+            <select id="ledger-type" name="type" class="form-select">
+                <option value="">All types</option>
+                @foreach (var type in Enum.GetValues<FinancialTransactionType>())
+                {
+                    <option value="@type" selected="@(selectedType == type)">@type</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="ledger-from">From date</label>
+            <input id="ledger-from" type="date" name="from" value="@from" class="form-control" />
+        </div>
+        <div>
+            <label class="form-label" for="ledger-to">To date</label>
+            <input id="ledger-to" type="date" name="to" value="@to" class="form-control" />
+        </div>
+        <div class="filter-actions">
+            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-filter"></i> Apply</button>
+            <a asp-action="Ledger" asp-route-studentId="@student.Id" class="btn btn-outline-secondary">Reset</a>
+        </div>
+    </div>
+</form>
+
+<section class="card table-card">
+    <div class="table-toolbar">
+        <div class="table-toolbar-start">
+            <strong>Transaction history</strong>
+            <span class="text-muted">@Model.TotalCount matching records</span>
+        </div>
+        <div class="table-toolbar-end">
+            <form method="get">
+                <input type="hidden" name="studentId" value="@student.Id" />
+                <input type="hidden" name="search" value="@Model.Search" />
+                <input type="hidden" name="type" value="@selectedType" />
+                <input type="hidden" name="from" value="@from" />
+                <input type="hidden" name="to" value="@to" />
+                <label class="visually-hidden" for="ledger-page-size">Rows per page</label>
+                <select id="ledger-page-size" name="pageSize" class="form-select" data-submit-on-change>
+                    @foreach (var size in new[] { 10, 20, 50, 100 })
+                    {
+                        <option value="@size" selected="@(Model.PageSize == size)">@size per page</option>
+                    }
+                </select>
+            </form>
+        </div>
+    </div>
+    @if (Model.Items.Count == 0)
+    {
+        <div class="empty-state">
+            <span class="empty-state-icon"><i class="fa-solid fa-receipt"></i></span>
+            <h3>No transactions found</h3>
+            <p>Adjust the filters or collect the first payment for this Student.</p>
+            @if (canCollect)
+            {
+                <a asp-action="Collect" asp-route-studentId="@student.Id" class="btn btn-primary">Collect payment</a>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover finance-table" data-enhanced="true">
+                <thead><tr><th>Receipt</th><th>Date</th><th>Fee</th><th>Type</th><th>Method</th><th class="text-end">Amount</th><th class="text-end">Action</th></tr></thead>
+                <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        var statusClass = item.Type == FinancialTransactionType.Payment ? "bg-success" :
+                            item.Type == FinancialTransactionType.Reversal ? "bg-danger" : "bg-warning";
+                        <tr>
+                            <td><a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.ReceiptNumber</a><small class="d-block text-muted">@(item.TransactionReference ?? "No reference")</small></td>
+                            <td>@item.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy")<small class="d-block text-muted">@item.CreatedUtc.ToLocalTime().ToString("HH:mm")</small></td>
+                            <td>@item.Fee.Term</td>
+                            <td><span class="badge @statusClass"><span class="status-dot"></span>@item.Type</span></td>
+                            <td>@item.PaymentMethod</td>
+                            <td class="text-end @(item.Amount < 0 ? "amount-negative" : "amount-positive")"><strong>@item.Amount.ToString("C")</strong></td>
+                            <td><div class="table-actions"><a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" title="View receipt"><i class="fa-regular fa-eye"></i></a></div></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_ServerPagination" model="Model" />
+    }
+</section>

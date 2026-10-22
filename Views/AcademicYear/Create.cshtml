@@ -1,0 +1,10 @@
+@model AcademicYear
+@{
+    ViewData["Title"] = "Add academic year";
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Academic structure</span><h1>Add academic year</h1><p>Define a date range used for enrolments and semester planning.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form method="post" novalidate><div asp-validation-summary="All"></div><div class="form-section"><div class="form-section-title"><h2>Year details</h2><p>Use a recognizable label such as 2026–27.</p></div>
+<div class="mb-3"><label asp-for="Name" class="form-label required"></label><input asp-for="Name" class="form-control" placeholder="2026–27" required /><span asp-validation-for="Name"></span></div>
+<div class="row g-3"><div class="col-md-6"><label asp-for="StartsOn" class="form-label required">Start date</label><input asp-for="StartsOn" type="date" class="form-control" required /><span asp-validation-for="StartsOn"></span></div><div class="col-md-6"><label asp-for="EndsOn" class="form-label required">End date</label><input asp-for="EndsOn" type="date" class="form-control" required /><span asp-validation-for="EndsOn"></span></div></div>
+<div class="form-check form-switch mt-3"><input asp-for="IsCurrent" class="form-check-input" /><label asp-for="IsCurrent" class="form-check-label">Set as current academic year</label></div></div>
+<div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="fa-solid fa-check me-1"></i> Save academic year</button></div></form></div>

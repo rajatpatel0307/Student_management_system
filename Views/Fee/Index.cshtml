@@ -1,0 +1,179 @@
+@model IEnumerable<Fee>
+@{
+    ViewData["Title"] = "Fees and payments";
+    var fees = Model.ToList();
+    var payments = ViewBag.Payments as IEnumerable<FinancialTransaction> ?? [];
+    var classes = ViewBag.Classes as IEnumerable<Class> ?? [];
+    var canManage = User.IsInRole("Admin") || User.IsInRole("SuperAdmin") || User.IsInRole("Accountant");
+    int? selectedClassId = ViewBag.ClassId is int classIdValue ? classIdValue : null;
+    var selectedStatus = ViewBag.Status as string;
+}
+
+<div class="page-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">Finance / Fee structures</span>
+        <h1>Fees and payments</h1>
+        <p>@(User.IsInRole("Student")
+            ? "Review your class fee schedules and recorded payment history."
+            : "Configure class charges and continue to the verified payment collection workflow.")</p>
+    </div>
+    @if (canManage)
+    {
+        <div class="page-actions">
+            <a asp-controller="Finance" asp-action="Index" class="btn btn-outline-secondary">
+                <i class="fa-solid fa-book"></i> Transaction ledger
+            </a>
+            <a asp-controller="Finance" asp-action="Collect" class="btn btn-outline-secondary">
+                <i class="fa-solid fa-cash-register"></i> Collect payment
+            </a>
+            <a asp-action="Create" class="btn btn-primary">
+                <i class="fa-solid fa-plus"></i> Add fee schedule
+            </a>
+        </div>
+    }
+</div>
+
+<partial name="_StatCards" model="@((IEnumerable<Student_Management_System.Models.StatCardViewModel>)ViewBag.Stats)" />
+
+<form method="get" class="card filter-panel" role="search" aria-label="Fee schedule filters">
+    <div class="filter-panel-grid">
+        <div>
+            <label class="form-label" for="fee-search">Search fee schedules</label>
+            <div class="input-icon">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input id="fee-search" name="search" value="@ViewBag.Search" class="form-control"
+                       placeholder="Class or fee term" autocomplete="off" />
+            </div>
+        </div>
+        @if (!User.IsInRole("Student"))
+        {
+            <div>
+                <label class="form-label" for="fee-class">Class</label>
+                <select id="fee-class" name="classId" class="form-select">
+                    <option value="">All classes</option>
+                    @foreach (var item in classes)
+                    {
+                        <option value="@item.Id" selected="@(selectedClassId == item.Id)">@item.Name</option>
+                    }
+                </select>
+            </div>
+        }
+        <div>
+            <label class="form-label" for="fee-status">Due status</label>
+            <select id="fee-status" name="status" class="form-select">
+                <option value="">All schedules</option>
+                <option value="overdue" selected="@(selectedStatus == "overdue")">Past due</option>
+                <option value="upcoming" selected="@(selectedStatus == "upcoming")">Upcoming</option>
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-filter"></i> Apply</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Reset</a>
+        </div>
+    </div>
+</form>
+
+<section class="card table-card mb-3">
+    <div class="table-toolbar">
+        <div class="table-toolbar-start">
+            <strong>@fees.Count fee schedules</strong>
+            <span class="text-muted">Class-level configured charges</span>
+        </div>
+    </div>
+    @if (fees.Count == 0)
+    {
+        <div class="empty-state">
+            <span class="empty-state-icon"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+            <h3>No fee schedules found</h3>
+            <p>Adjust the filters or create a fee schedule for a class.</p>
+            @if (canManage)
+            {
+                <a asp-action="Create" class="btn btn-primary">Add fee schedule</a>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover fee-schedule-table" data-enhanced="true">
+                <thead><tr><th>Class</th><th>Fee term</th><th>Due date</th><th>Status</th><th class="text-end">Amount</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                    @foreach (var item in fees)
+                    {
+                        var pastDue = item.DueDate.Date < DateTime.Today;
+                        <tr>
+                            <td><strong>@(item.Class?.Name ?? "No class")</strong></td>
+                            <td><a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.Term</a><small class="d-block text-muted">Fee ID #@item.Id</small></td>
+                            <td>@item.DueDate.ToString("dd MMM yyyy")<small class="d-block text-muted">@(pastDue ? $"{(DateTime.Today - item.DueDate.Date).Days} days ago" : $"In {(item.DueDate.Date - DateTime.Today).Days} days")</small></td>
+                            <td><span class="badge @(pastDue ? "bg-danger" : "bg-info")"><span class="status-dot"></span>@(pastDue ? "Past due" : "Upcoming")</span></td>
+                            <td class="text-end"><strong>@item.Amount.ToString("C")</strong></td>
+                            <td>
+                                <div class="table-actions">
+                                    <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" title="View details"><i class="fa-regular fa-eye"></i></a>
+                                    @if (canManage)
+                                    {
+                                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="Edit fee"><i class="fa-regular fa-pen-to-square"></i></a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="card table-card">
+    <div class="table-toolbar">
+        <div class="table-toolbar-start">
+            <strong>Recent payments</strong>
+            <span class="text-muted">@payments.Count() matching records, latest 100 shown</span>
+        </div>
+        @if (canManage)
+        {
+            <div class="table-toolbar-end">
+                <a asp-controller="Finance" asp-action="Index" class="btn btn-sm btn-outline-primary">View complete ledger</a>
+            </div>
+        }
+    </div>
+    @if (!payments.Any())
+    {
+        <div class="empty-state">
+            <span class="empty-state-icon"><i class="fa-solid fa-receipt"></i></span>
+            <h3>No payments found</h3>
+            <p>Payments matching these fee schedules will appear here.</p>
+            @if (canManage)
+            {
+                <a asp-controller="Finance" asp-action="Collect" class="btn btn-primary">Collect payment</a>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover" data-enhanced="true">
+                <thead><tr>@if (!User.IsInRole("Student")) { <th>Student</th> }<th>Fee</th><th>Reference</th><th>Date</th><th class="text-end">Amount</th>@if (!User.IsInRole("Student")) { <th class="text-end">Action</th> }</tr></thead>
+                <tbody>
+                    @foreach (var payment in payments)
+                    {
+                        <tr>
+                            @if (!User.IsInRole("Student"))
+                            {
+                                <td><a asp-controller="Finance" asp-action="Ledger" asp-route-studentId="@payment.StudentId" class="record-link">@payment.Student?.FullName</a></td>
+                            }
+                            <td>@payment.Fee?.Term</td>
+                            <td>@payment.ReceiptNumber</td>
+                            <td>@payment.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
+                            <td class="text-end @(payment.Amount < 0 ? "amount-negative" : "amount-positive")"><strong>@payment.Amount.ToString("C")</strong></td>
+                            @if (!User.IsInRole("Student"))
+                            {
+                                <td><div class="table-actions"><a asp-controller="Finance" asp-action="Ledger" asp-route-studentId="@payment.StudentId" class="btn btn-sm btn-outline-primary" title="Open Student ledger"><i class="fa-solid fa-book-open"></i></a></div></td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

@@ -1,0 +1,19 @@
+@model StudentAuthoritativeEditInputModel
+@{ ViewData["Title"] = "Edit student profile"; }
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Department / Students</span><h1>Edit student profile</h1><p>Only approved identity fields can be changed. Campus, department, academic placement, role and permissions are protected.</p></div><div class="page-actions"><a asp-controller="Students" asp-action="Index" class="btn btn-outline-secondary">Back</a></div></div>
+<form asp-action="EditStudent" asp-route-id="@Model.StudentId" method="post" class="card section-card form-card" novalidate>
+    <input asp-for="StudentId" type="hidden" />
+    <input asp-for="RowVersion" type="hidden" />
+    <div asp-validation-summary="All" class="alert alert-danger"></div>
+    <div class="row g-3">
+        <div class="col-md-6"><label asp-for="FullName" class="form-label required"></label><input asp-for="FullName" class="form-control" maxlength="160" required /><span asp-validation-for="FullName"></span></div>
+        <div class="col-md-6"><label asp-for="Email" class="form-label required">Official email</label><input asp-for="Email" class="form-control" type="email" maxlength="256" required /><span asp-validation-for="Email"></span></div>
+        <div class="col-md-4"><label asp-for="Phone" class="form-label"></label><input asp-for="Phone" class="form-control" maxlength="30" /><span asp-validation-for="Phone"></span></div>
+        <div class="col-md-4"><label asp-for="AdmissionNumber" class="form-label"></label><input asp-for="AdmissionNumber" class="form-control" maxlength="40" /><span asp-validation-for="AdmissionNumber"></span></div>
+        <div class="col-md-4"><label asp-for="RollNumber" class="form-label"></label><input asp-for="RollNumber" class="form-control" maxlength="40" /><span asp-validation-for="RollNumber"></span></div>
+        <div class="col-md-4"><div class="form-check mt-4"><input asp-for="IsActive" class="form-check-input" /><label asp-for="IsActive" class="form-check-label">Active account</label></div></div>
+    </div>
+    <div class="alert alert-info mt-3 mb-0">Role, permissions, campus, department and academic placement cannot be changed here.</div>
+    <div class="form-actions"><a asp-controller="Students" asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit" data-confirm="Apply this authoritative student profile update?">Save changes</button></div>
+</form>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

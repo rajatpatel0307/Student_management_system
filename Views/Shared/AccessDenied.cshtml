@@ -1,0 +1,15 @@
+@{
+    ViewData["Title"] = "Access denied";
+}
+<div class="container py-5">
+    <div class="error-state card">
+        <span class="error-state-icon"><i class="fa-solid fa-lock"></i></span>
+        <span class="eyebrow">403 · Permission denied</span>
+        <h1>You don’t have access to this page</h1>
+        <p>The requested page is protected for another role or permission level.</p>
+        <div class="page-actions">
+            <button class="btn btn-outline-secondary" type="button" data-history-back>Go back</button>
+            <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Return home</a>
+        </div>
+    </div>
+</div>

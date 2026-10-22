@@ -1,0 +1,4 @@
+@model Notice
+@{ViewData["Title"]=Model.Title;}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Communication / Announcements / #@Model.Id</span><h1>@Model.Title</h1><p>Published @Model.CreatedDate.ToString("dd MMMM yyyy, hh:mm tt") for @Model.TargetRole.</p></div><div class="page-actions">@if(User.IsInRole("Admin")||User.IsInRole("SuperAdmin")||(User.IsInRole("HOD")&&Model.TargetRole=="Department")){<a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">Edit announcement</a>}<a asp-action="Index" class="btn btn-outline-secondary">Back</a></div></div>
+<article class="card section-card"><div class="section-title-row"><div><span class="badge bg-info">@Model.TargetRole</span>@if(Model.Department!=null){<span class="badge bg-secondary ms-1">@Model.Department.Name</span>}</div><span class="metric-icon"><i class="fa-solid fa-bullhorn"></i></span></div><div class="notice-message">@Model.Message</div></article>

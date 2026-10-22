@@ -1,0 +1,120 @@
+@model List<Student>
+@{
+    ViewData["Title"] = "Take attendance";
+    var subjects = ViewBag.Subjects as IEnumerable<Subject> ?? Enumerable.Empty<Subject>();
+    var className = ViewBag.Class?.Name ?? "Selected class";
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">@className · @DateTime.Today.ToString("dddd, dd MMMM yyyy")</span><h1>Take attendance</h1><p>Record lecture attendance quickly. Duplicate attendance for the same subject and date is blocked.</p></div>
+    <div class="page-actions"><a asp-action="SelectClass" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i> Change class</a></div>
+</div>
+
+<form method="post" id="attendanceForm">
+    <section class="card section-card mb-3">
+        <div class="attendance-toolbar">
+            <div><label class="form-label required" for="attendanceSubject">Subject</label><select id="attendanceSubject" name="subjectId" class="form-select" required><option value="">Select subject</option>@foreach (var subject in subjects) { <option value="@subject.Id">@subject.Name</option> }</select></div>
+            <div><label class="form-label" for="lecture">Lecture / period</label><input id="lecture" name="lecture" class="form-control" maxlength="100" placeholder="e.g. Period 2" /></div>
+            <div><label class="form-label" for="attendanceDate">Date</label><input id="attendanceDate" class="form-control" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" readonly /></div>
+            <div><label class="form-label" for="studentSearch">Find student</label><input id="studentSearch" class="form-control" type="search" placeholder="Search name or ID…" /></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+            <button class="btn btn-sm btn-success" type="button" data-mark-all="Present"><i class="fa-solid fa-check-double me-1"></i> Mark all present</button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-mark-all="Absent">All absent</button>
+            <span class="ms-auto text-muted small"><strong id="attendanceCompleted">0</strong> of @Model.Count students reviewed</span>
+        </div>
+    </section>
+
+    <section class="card table-card">
+        <div class="table-responsive">
+            <table class="table align-middle" id="attendanceTable">
+                <thead><tr><th>Student</th><th>Section</th><th>Attendance status</th></tr></thead>
+                <tbody>
+                @for (var i = 0; i < Model.Count; i++)
+                {
+                    var student = Model[i];
+                    var initials = string.Concat(student.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+                    <tr data-student-row>
+                        <td>
+                            <div class="attendance-person">
+                                @if (!string.IsNullOrWhiteSpace(student.PhotoPath)) { <span class="avatar avatar-sm"><img src="@Url.Action("Photo", "Students", new { id = student.Id })" alt="" /></span> } else { <span class="avatar avatar-sm">@initials</span> }
+                                <span class="activity-copy"><strong>@student.FullName</strong><small>Student ID #@student.Id</small></span>
+                            </div>
+                            <input type="hidden" name="[@i].StudentId" value="@student.Id" />
+                        </td>
+                        <td><span class="badge bg-primary">@(student.Section?.Name ?? "Unassigned")</span></td>
+                        <td>
+                            <div class="attendance-statuses" role="radiogroup" aria-label="Attendance for @student.FullName">
+                                @foreach (var status in new[] { "Present", "Absent", "Late", "Excused" })
+                                {
+                                    var id = $"status_{i}_{status}";
+                                    <span class="status-choice">
+                                        <input id="@id" name="[@i].Status" type="radio" value="@status" required />
+                                        <label for="@id"><i class="fa-solid @(status == "Present" ? "fa-check" : status == "Absent" ? "fa-xmark" : status == "Late" ? "fa-clock" : "fa-circle-info")"></i>@status</label>
+                                    </span>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="card section-card mt-3">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="legend-list flex-grow-1">
+                <div class="legend-item"><span>Present</span><strong id="summaryPresent">0</strong></div>
+                <div class="legend-item"><span>Absent</span><strong id="summaryAbsent">0</strong></div>
+                <div class="legend-item"><span>Late / Excused</span><strong id="summaryOther">0</strong></div>
+            </div>
+            <div class="page-actions">
+                <button class="btn btn-outline-secondary" type="button" id="saveAttendanceDraft"><i class="fa-regular fa-floppy-disk me-1"></i> Save browser draft</button>
+                <button class="btn btn-primary" type="submit" data-confirm="Submit attendance for this class? You can update it later only within the permitted period."><i class="fa-solid fa-paper-plane me-1"></i> Submit attendance</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+<script nonce="@(ViewContext.HttpContext.Items["CspNonce"])">
+(() => {
+    const form = document.getElementById('attendanceForm');
+    const rows = [...document.querySelectorAll('[data-student-row]')];
+    const search = document.getElementById('studentSearch');
+    const draftKey = `attendance:@ViewBag.Class?.Id:@DateTime.Today.ToString("yyyy-MM-dd")`;
+    function refresh() {
+        const selected = [...form.querySelectorAll('input[type=radio]:checked')];
+        document.getElementById('attendanceCompleted').textContent = selected.length;
+        document.getElementById('summaryPresent').textContent = selected.filter(x => x.value === 'Present').length;
+        document.getElementById('summaryAbsent').textContent = selected.filter(x => x.value === 'Absent').length;
+        document.getElementById('summaryOther').textContent = selected.filter(x => x.value === 'Late' || x.value === 'Excused').length;
+    }
+    form.addEventListener('change', refresh);
+    document.querySelectorAll('[data-mark-all]').forEach(button => button.addEventListener('click', () => {
+        rows.filter(row => !row.hidden).forEach(row => row.querySelector(`input[value="${button.dataset.markAll}"]`).checked = true);
+        refresh();
+    }));
+    search.addEventListener('input', () => {
+        const value = search.value.trim().toLowerCase();
+        rows.forEach(row => row.hidden = !row.textContent.toLowerCase().includes(value));
+    });
+    document.getElementById('saveAttendanceDraft').addEventListener('click', () => {
+        const values = [...form.querySelectorAll('input[type=radio]:checked')].map(x => ({ name: x.name, value: x.value }));
+        localStorage.setItem(draftKey, JSON.stringify({ values, subjectId: form.subjectId.value, lecture: form.lecture.value }));
+        window.smsUi.showToast('Attendance draft saved on this device.', 'success');
+    });
+    try {
+        const draft = JSON.parse(localStorage.getItem(draftKey));
+        if (draft) {
+            form.subjectId.value = draft.subjectId || '';
+            form.lecture.value = draft.lecture || '';
+            draft.values.forEach(item => form.querySelector(`input[name="${CSS.escape(item.name)}"][value="${item.value}"]`)?.click());
+            window.smsUi.showToast('Your saved attendance draft was restored.', 'info');
+        }
+    } catch {}
+    form.addEventListener('submit', () => localStorage.removeItem(draftKey));
+    refresh();
+})();
+</script>
+}

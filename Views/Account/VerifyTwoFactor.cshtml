@@ -1,0 +1,17 @@
+@{ ViewData["Title"] = "Verify sign in"; }
+
+<div class="mfa-page">
+    <section class="auth-card card section-card mfa-card" aria-labelledby="verifyMfaTitle">
+        <span class="eyebrow">Secure sign in</span>
+        <h1 id="verifyMfaTitle">Enter authenticator code</h1>
+        <p>Open your authenticator app and enter the current six-digit code.</p>
+        <form asp-action="VerifyTwoFactor" method="post" class="mfa-form">
+            <div asp-validation-summary="All" class="alert alert-danger"></div>
+            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+            <label class="form-label required" for="code">Authenticator code</label>
+            <input id="code" name="code" class="form-control mb-3" inputmode="numeric" autocomplete="one-time-code" required />
+            <button class="btn btn-primary w-100" type="submit">Verify</button>
+        </form>
+        <a asp-action="RecoveryCode" asp-route-returnUrl="@ViewBag.ReturnUrl" class="btn btn-link mt-2">Use a recovery code</a>
+    </section>
+</div>

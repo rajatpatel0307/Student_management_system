@@ -1,0 +1,14 @@
+@model IEnumerable<Permission>
+@{
+    ViewData["Title"] = "Administrator permissions";
+    var effects = ViewBag.PermissionEffects as IDictionary<int, string> ?? new Dictionary<int, string>();
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Super Admin only</span><h1>Permissions for @ViewBag.Admin.FullName</h1><p>Grant only the modules this Administrator needs. Backend checks enforce every permission.</p></div><div class="page-actions"><a asp-action="Admins" class="btn btn-outline-secondary">Back to administrators</a></div></div>
+<div class="alert alert-warning"><span>Permission changes take effect on the Administrator’s next request. Review access carefully before granting it.</span></div>
+<div class="card"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>Permission</th><th>Description</th><th>Status</th><th class="text-end">Action</th></tr></thead><tbody>
+@foreach (var item in Model)
+{
+    var effect = effects.TryGetValue(item.Id, out var value) ? value : "inherit";
+    <tr><td><div class="attendance-person"><span class="activity-icon"><i class="fa-solid fa-key"></i></span><strong>@item.Key</strong></div></td><td>@item.Description</td><td><span class="badge @(effect == "allow" ? "bg-success" : effect == "deny" ? "bg-danger" : "bg-info")"><span class="status-dot"></span>@(effect == "allow" ? "Explicit allow" : effect == "deny" ? "Explicit deny" : "Inherit role default")</span></td><td><form asp-action="SetPermission" method="post" class="d-flex justify-content-end gap-2"><input type="hidden" name="userId" value="@ViewBag.Admin.Id" /><input type="hidden" name="permissionId" value="@item.Id" /><label class="visually-hidden" for="effect-@item.Id">Permission effect</label><select id="effect-@item.Id" name="effect" class="form-select form-select-sm w-auto"><option value="inherit" selected="@(effect=="inherit" ? "selected" : null)">Inherit</option><option value="allow" selected="@(effect=="allow" ? "selected" : null)">Allow</option><option value="deny" selected="@(effect=="deny" ? "selected" : null)">Deny</option></select><button class="btn btn-sm btn-primary" type="submit">Save</button></form></td></tr>
+}
+</tbody></table></div></div>

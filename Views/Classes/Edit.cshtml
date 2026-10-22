@@ -1,0 +1,14 @@
+@model Class
+@{ ViewData["Title"] = $"Edit {Model.Name}"; }
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Classes / #@Model.Id / Edit</span><h1>Edit @Model.Name</h1><p>Update academic placement and primary class Teacher with relationship validation.</p></div><div class="page-actions"><a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Back to details</a></div></div>
+<form asp-action="Edit" asp-route-id="@Model.Id" method="post" novalidate data-track-changes class="edit-shell">
+    <input asp-for="Id" type="hidden" /><input asp-for="RowVersion" type="hidden" /><div asp-validation-summary="All" class="alert alert-danger"></div>
+    <section class="edit-section"><div class="edit-section-header"><span class="edit-section-icon"><i class="fa-solid fa-school"></i></span><div><h2>Class information</h2><p>The selected semester and Teacher must be compatible with the department.</p></div></div><div class="row g-3">
+        <div class="col-md-6"><label asp-for="Name" class="form-label required">Class name</label><input asp-for="Name" class="form-control" required /><span asp-validation-for="Name"></span></div>
+        <div class="col-md-6"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" asp-items="ViewBag.Departments" class="form-select"><option value="">Select department</option></select><span asp-validation-for="DepartmentId"></span></div>
+        <div class="col-md-6"><label asp-for="SemesterId" class="form-label">Semester</label><select asp-for="SemesterId" asp-items="ViewBag.Semesters" class="form-select" data-dependent-parent="#DepartmentId" data-dependent-url="/api/lookups/semesters?departmentId={value}" data-placeholder="Select semester"><option value="">Select semester</option></select><span asp-validation-for="SemesterId"></span></div>
+        <div class="col-md-6"><label asp-for="TeacherId" class="form-label required">Primary class Teacher</label><select asp-for="TeacherId" asp-items="ViewBag.Teachers" class="form-select" required><option value="">Select Teacher</option></select><span asp-validation-for="TeacherId"></span></div>
+    </div></section>
+    <div class="sticky-form-actions"><a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a><div><button type="reset" class="btn btn-outline-secondary">Reset</button><button class="btn btn-primary" type="submit">Save changes</button></div></div>
+</form>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

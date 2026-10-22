@@ -1,0 +1,27 @@
+@model dynamic
+@{
+    var current = (int)Model.Page;
+    var totalPages = (int)Model.TotalPages;
+    var request = ViewContext.HttpContext.Request;
+    var query = request.Query.ToDictionary(x => x.Key, x => (string?)x.Value.ToString());
+    string PageUrl(int pageNumber)
+    {
+        query["page"] = pageNumber.ToString();
+        return request.Path.ToString() + Microsoft.AspNetCore.Http.QueryString.Create(query).ToString();
+    }
+}
+<nav class="server-pagination" aria-label="Record pages">
+    <p>Showing <strong>@Model.FirstItem–@Model.LastItem</strong> of <strong>@Model.TotalCount</strong></p>
+    <ul class="pagination">
+        <li class="page-item @(!Model.HasPrevious ? "disabled" : "")">
+            <a class="page-link" href="@(Model.HasPrevious ? PageUrl(current - 1) : "#")" aria-label="Previous page"><i class="fa-solid fa-chevron-left"></i></a>
+        </li>
+        @for (var pageNumber = Math.Max(1, current - 2); pageNumber <= Math.Min(totalPages, current + 2); pageNumber++)
+        {
+            <li class="page-item @(pageNumber == current ? "active" : "")"><a class="page-link" href="@PageUrl(pageNumber)" aria-current="@(pageNumber == current ? "page" : null)">@(pageNumber)</a></li>
+        }
+        <li class="page-item @(!Model.HasNext ? "disabled" : "")">
+            <a class="page-link" href="@(Model.HasNext ? PageUrl(current + 1) : "#")" aria-label="Next page"><i class="fa-solid fa-chevron-right"></i></a>
+        </li>
+    </ul>
+</nav>

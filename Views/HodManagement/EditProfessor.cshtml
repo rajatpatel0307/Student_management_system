@@ -1,0 +1,18 @@
+@model ProfessorEditInputModel
+@{ ViewData["Title"] = "Edit professor profile"; }
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Department / Professors</span><h1>Edit professor profile</h1><p>Only approved authoritative fields can be changed. Role, campus, permissions and department are protected.</p></div><div class="page-actions"><a asp-action="Professors" class="btn btn-outline-secondary">Back</a></div></div>
+<form asp-action="EditProfessor" asp-route-id="@Model.TeacherId" method="post" class="card section-card form-card" novalidate>
+    <input asp-for="TeacherId" type="hidden" />
+    <input asp-for="RowVersion" type="hidden" />
+    <div asp-validation-summary="All" class="alert alert-danger"></div>
+    <div class="row g-3">
+        <div class="col-md-6"><label asp-for="FullName" class="form-label required"></label><input asp-for="FullName" class="form-control" maxlength="160" required /><span asp-validation-for="FullName"></span></div>
+        <div class="col-md-6"><label asp-for="Email" class="form-label required">Official email</label><input asp-for="Email" class="form-control" type="email" maxlength="256" required /><span asp-validation-for="Email"></span></div>
+        <div class="col-md-6"><label asp-for="Phone" class="form-label"></label><input asp-for="Phone" class="form-control" maxlength="30" /><span asp-validation-for="Phone"></span></div>
+        <div class="col-md-6"><label asp-for="Qualification" class="form-label">Designation / qualification</label><input asp-for="Qualification" class="form-control" maxlength="160" /><span asp-validation-for="Qualification"></span></div>
+        <div class="col-md-6"><div class="form-check mt-4"><input asp-for="IsActive" class="form-check-input" /><label asp-for="IsActive" class="form-check-label">Active account</label></div></div>
+    </div>
+    <div class="alert alert-info mt-3 mb-0">Campus, department, role and permissions cannot be changed from this workflow.</div>
+    <div class="form-actions"><a asp-action="Professors" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit" data-confirm="Apply this authoritative professor profile update?">Save changes</button></div>
+</form>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

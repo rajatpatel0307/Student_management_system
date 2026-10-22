@@ -1,0 +1,46 @@
+@model List<Attendance>
+@{
+    ViewData["Title"] = "Attendance history";
+    var classId = Model.FirstOrDefault()?.Student?.ClassId ?? 0;
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">Attendance records</span><h1>Attendance history</h1><p>Search, filter, export and update records within your permitted update window.</p></div>
+    <div class="page-actions">
+        @if (classId > 0)
+        {
+            <a asp-action="StudentStats" asp-route-classId="@classId" class="btn btn-outline-secondary"><i class="fa-solid fa-chart-simple me-1"></i> Student statistics</a>
+            <a asp-action="Mark" asp-route-classId="@classId" class="btn btn-primary"><i class="fa-solid fa-plus me-1"></i> Today’s attendance</a>
+        }
+    </div>
+</div>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead><tr><th>Date</th><th>Student</th><th>Subject / lecture</th><th>Status</th><th class="text-end">Update</th></tr></thead>
+            <tbody>
+            @foreach (var item in Model)
+            {
+                var statusClass = item.Status == "Present" ? "bg-success" : item.Status == "Absent" ? "bg-danger" : "bg-warning";
+                <tr>
+                    <td><strong>@item.Date.ToString("dd MMM yyyy")</strong><small class="d-block text-muted">@item.Date.ToString("dddd")</small></td>
+                    <td><div class="attendance-person"><span class="avatar avatar-sm">@string.Concat(item.Student.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0]))</span><span class="activity-copy"><strong>@item.Student.FullName</strong><small>Student #@item.StudentId</small></span></div></td>
+                    <td>@(item.Subject?.Name ?? "General")<small class="d-block text-muted">@(item.Lecture ?? "Daily attendance")</small></td>
+                    <td><span class="badge @statusClass"><span class="status-dot"></span>@item.Status</span></td>
+                    <td>
+                        <form asp-action="Update" method="post" class="d-flex gap-2 justify-content-end">
+                            <input type="hidden" name="id" value="@item.Id" />
+                            <select name="status" class="form-select" style="max-width:8rem" aria-label="Update status for @item.Student.FullName">
+                                @foreach (var status in new[] { "Present", "Absent", "Late", "Excused" })
+                                {
+                                    <option value="@status" selected="@(item.Status == status ? "selected" : null)">@status</option>
+                                }
+                            </select>
+                            <button class="btn btn-sm btn-outline-primary" type="submit" data-confirm="Update this attendance status?">Save</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

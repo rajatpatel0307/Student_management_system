@@ -1,0 +1,14 @@
+@model Exam
+@{
+    ViewData["Title"] = "Add exam";
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Assessment</span><h1>Add exam</h1><p>Set up an assessment before Professors begin entering marks.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form method="post" novalidate><div asp-validation-summary="All"></div><div class="row g-3">
+<div class="col-md-8"><label asp-for="Name" class="form-label required"></label><input asp-for="Name" class="form-control" placeholder="Midterm examination" required /><span asp-validation-for="Name"></span></div>
+<div class="col-md-4"><label asp-for="ExamType" class="form-label required">Exam type</label><select asp-for="ExamType" class="form-select" required><option>Assignment</option><option>Internal</option><option>Practical</option><option>Midterm</option><option>Final</option></select><span asp-validation-for="ExamType"></span></div>
+<div class="col-md-4"><label asp-for="ExamDate" class="form-label required">Exam date</label><input asp-for="ExamDate" class="form-control" type="date" required /><span asp-validation-for="ExamDate"></span></div>
+<div class="col-md-4"><label asp-for="MaximumMarks" class="form-label required">Maximum marks</label><input asp-for="MaximumMarks" class="form-control" min="0.01" step="0.01" required /></div>
+<div class="col-md-4"><label asp-for="PassMarks" class="form-label required">Pass marks</label><input asp-for="PassMarks" class="form-control" min="0" step="0.01" required /></div>
+<div class="col-md-6"><label asp-for="WeightPercent" class="form-label">Assessment weight %</label><input asp-for="WeightPercent" class="form-control" min="0" max="100" step="0.01" /></div>
+<div class="col-md-6"><label asp-for="Status" class="form-label">Initial lifecycle</label><select asp-for="Status" asp-items="Html.GetEnumSelectList<ExamLifecycle>()" class="form-select"></select></div>
+</div><div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit">Create exam</button></div></form></div>

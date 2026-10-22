@@ -1,0 +1,240 @@
+@model Student_Management_System.Models.CollectPaymentViewModel
+@using Student_Management_System.Models
+@{
+    ViewData["Title"] = "Collect payment";
+    var students = ViewBag.Students as IEnumerable<Student> ?? [];
+    var fees = ViewBag.Fees as IEnumerable<Fee> ?? [];
+}
+
+<div class="page-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">Finance / Payment collection</span>
+        <h1>Collect payment</h1>
+        <p>Find the Student, select an applicable fee, verify the amount, and issue an immutable receipt.</p>
+    </div>
+    <div class="page-actions">
+        <a asp-action="Index" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left"></i> Ledger</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-8">
+        <form asp-action="Collect" method="post" data-track-changes id="collectPaymentForm">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+            <input asp-for="IdempotencyKey" type="hidden" />
+
+            <section class="card section-card mb-3">
+                <div class="section-title-row">
+                    <div>
+                        <h2>Student and fee</h2>
+                        <p>Search large lists and show only fees belonging to the selected Student’s class.</p>
+                    </div>
+                    <span class="badge bg-info">Step 1 of 2</span>
+                </div>
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <label class="form-label" for="studentLookup">Find Student</label>
+                        <div class="input-icon">
+                            <i class="fa-solid fa-user-graduate" aria-hidden="true"></i>
+                            <input id="studentLookup" class="form-control" type="search"
+                                   placeholder="Search by name, email, class or ID" autocomplete="off" />
+                        </div>
+                        <div class="form-text">Type to narrow the Student list below.</div>
+                    </div>
+                    <div class="col-lg-6">
+                        <label class="form-label" for="feeLookup">Find fee</label>
+                        <div class="input-icon">
+                            <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+                            <input id="feeLookup" class="form-control" type="search"
+                                   placeholder="Search by class, term or amount" autocomplete="off" />
+                        </div>
+                        <div class="form-text">Selecting a Student automatically limits fees by class.</div>
+                    </div>
+                    <div class="col-lg-6">
+                        <label asp-for="StudentId" class="form-label">Student</label>
+                        <select asp-for="StudentId" class="form-select" required>
+                            <option value="">Select Student</option>
+                            @foreach (var item in students)
+                            {
+                                <option value="@item.Id"
+                                        data-class="@item.ClassId"
+                                        data-label="@($"{item.FullName} {item.Email} {item.Class?.Name} {item.Id}".ToLowerInvariant())">
+                                    @item.FullName · @item.Email · @(item.Class?.Name ?? "No class")
+                                </option>
+                            }
+                        </select>
+                        <span asp-validation-for="StudentId" class="text-danger"></span>
+                    </div>
+                    <div class="col-lg-6">
+                        <label asp-for="FeeId" class="form-label">Applicable fee</label>
+                        <select asp-for="FeeId" class="form-select" required>
+                            <option value="">Select fee</option>
+                            @foreach (var item in fees)
+                            {
+                                <option value="@item.Id"
+                                        data-class="@item.ClassId"
+                                        data-amount="@item.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                        data-label="@($"{item.Class?.Name} {item.Term} {item.Amount}".ToLowerInvariant())">
+                                    @item.Class?.Name · @item.Term · @item.Amount.ToString("C") · Due @item.DueDate.ToString("dd MMM yyyy")
+                                </option>
+                            }
+                        </select>
+                        <span asp-validation-for="FeeId" class="text-danger"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card section-card">
+                <div class="section-title-row">
+                    <div>
+                        <h2>Payment details</h2>
+                        <p>Record the exact received amount and a traceable payment reference.</p>
+                    </div>
+                    <span class="badge bg-success">Step 2 of 2</span>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="Amount" class="form-label">Amount received</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fa-solid fa-indian-rupee-sign"></i></span>
+                            <input asp-for="Amount" class="form-control" step="0.01" min="0.01" placeholder="0.00" />
+                        </div>
+                        <span asp-validation-for="Amount" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="PaymentMethod" class="form-label">Payment method</label>
+                        <select asp-for="PaymentMethod" class="form-select" required>
+                            <option>Cash</option>
+                            <option>Card</option>
+                            <option>UPI</option>
+                            <option>Bank transfer</option>
+                            <option>Cheque</option>
+                            <option>Online</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="TransactionReference" class="form-label">Transaction reference</label>
+                        <input asp-for="TransactionReference" class="form-control"
+                               placeholder="UPI, bank, cheque, or gateway ID" />
+                        <span asp-validation-for="TransactionReference" class="text-danger"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="Notes" class="form-label">Internal notes</label>
+                        <textarea asp-for="Notes" class="form-control" rows="3"
+                                  placeholder="Optional reconciliation or payment notes"></textarea>
+                        <span asp-validation-for="Notes" class="text-danger"></span>
+                    </div>
+                </div>
+            </section>
+
+            <div class="sticky-form-actions">
+                <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                <button class="btn btn-success" type="submit"
+                        data-confirm="Record this payment and issue its receipt?">
+                    <i class="fa-solid fa-circle-check"></i> Collect and issue receipt
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-xl-4">
+        <aside class="card section-card finance-payment-summary">
+            <div class="section-title-row">
+                <div>
+                    <h2>Payment summary</h2>
+                    <p>Review before saving.</p>
+                </div>
+            </div>
+            <div id="paymentSelectionSummary" class="empty-state compact">
+                <span class="empty-state-icon"><i class="fa-solid fa-receipt"></i></span>
+                <h3>Nothing selected</h3>
+                <p>Select a Student and fee to preview this payment.</p>
+            </div>
+            <div class="alert alert-info mt-3 mb-0">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>Receipts are permanent. Corrections are recorded using linked reversal entries.</span>
+            </div>
+        </aside>
+    </div>
+</div>
+
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+    <script nonce="@(ViewContext.HttpContext.Items["CspNonce"])">
+        (() => {
+            const studentSearch = document.getElementById("studentLookup");
+            const feeSearch = document.getElementById("feeLookup");
+            const studentSelect = document.getElementById("StudentId");
+            const feeSelect = document.getElementById("FeeId");
+            const amountInput = document.getElementById("Amount");
+            const summary = document.getElementById("paymentSelectionSummary");
+
+            function selectedOption(select) {
+                return select?.selectedOptions?.[0] ?? null;
+            }
+
+            function escapeHtml(value) {
+                return String(value).replace(/[&<>"']/g, character => ({
+                    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+                })[character]);
+            }
+
+            function refreshStudentOptions() {
+                const term = studentSearch.value.trim().toLowerCase();
+                [...studentSelect.options].forEach((option, index) => {
+                    if (index === 0) return;
+                    option.hidden = term.length > 0 && !option.dataset.label.includes(term);
+                });
+            }
+
+            function refreshFeeOptions() {
+                const term = feeSearch.value.trim().toLowerCase();
+                const classId = selectedOption(studentSelect)?.dataset.class ?? "";
+                [...feeSelect.options].forEach((option, index) => {
+                    if (index === 0) return;
+                    const wrongClass = classId && option.dataset.class !== classId;
+                    const wrongSearch = term.length > 0 && !option.dataset.label.includes(term);
+                    option.hidden = wrongClass || wrongSearch;
+                });
+                if (selectedOption(feeSelect)?.hidden) feeSelect.value = "";
+            }
+
+            function refreshSummary() {
+                const student = selectedOption(studentSelect);
+                const fee = selectedOption(feeSelect);
+                if (!student?.value || !fee?.value) {
+                    summary.className = "empty-state compact";
+                    summary.innerHTML = '<span class="empty-state-icon"><i class="fa-solid fa-receipt"></i></span><h3>Complete the selection</h3><p>Select both a Student and an applicable fee.</p>';
+                    return;
+                }
+                const amount = Number(amountInput.value || fee.dataset.amount || 0);
+                summary.className = "finance-selection-preview";
+                summary.innerHTML = `
+                    <span class="badge bg-success mb-2">Ready to collect</span>
+                    <strong>${escapeHtml(student.textContent.trim())}</strong>
+                    <small>${escapeHtml(fee.textContent.trim())}</small>
+                    <div class="finance-preview-amount">${new Intl.NumberFormat(undefined, { style: "currency", currency: "INR" }).format(amount)}</div>`;
+            }
+
+            studentSearch.addEventListener("input", refreshStudentOptions);
+            feeSearch.addEventListener("input", refreshFeeOptions);
+            studentSelect.addEventListener("change", () => {
+                feeSelect.value = "";
+                refreshFeeOptions();
+                refreshSummary();
+            });
+            feeSelect.addEventListener("change", () => {
+                const fee = selectedOption(feeSelect);
+                if (fee?.value && (!amountInput.value || Number(amountInput.value) <= 0))
+                    amountInput.value = fee.dataset.amount;
+                refreshSummary();
+            });
+            amountInput.addEventListener("input", refreshSummary);
+            refreshStudentOptions();
+            refreshFeeOptions();
+            refreshSummary();
+        })();
+    </script>
+}

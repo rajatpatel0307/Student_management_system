@@ -1,0 +1,126 @@
+@model Student_Management_System.Models.RoleDashboardViewModel
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService Authorization
+@{
+    var filterAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "Index";
+    var filterController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "Dashboard";
+    var canExport = (await Authorization.AuthorizeAsync(User, "Dashboard.Export")).Succeeded;
+}
+
+<section class="analytics-dashboard" aria-labelledby="dashboard-title">
+    <header class="analytics-hero">
+        <div>
+            <p class="analytics-eyebrow">@Model.Eyebrow</p>
+            <h1 id="dashboard-title">@Model.Title</h1>
+            <p>@Model.Description</p>
+            <div class="analytics-meta">
+                <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> @Model.ScopeDescription</span>
+                <span><i class="fa-regular fa-clock" aria-hidden="true"></i> Refreshed <time datetime="@Model.RefreshedUtc.ToString("O")">@Model.RefreshedUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</time></span>
+            </div>
+        </div>
+        <div class="analytics-actions">
+            @if (!string.IsNullOrWhiteSpace(Model.PrimaryActionUrl))
+            {
+                <a class="btn btn-primary" href="@Model.PrimaryActionUrl">@Model.PrimaryActionLabel</a>
+            }
+            <button type="button" class="btn btn-secondary" data-dashboard-print><i class="fa-solid fa-print" aria-hidden="true"></i> Print</button>
+        </div>
+    </header>
+
+    <form class="analytics-filters" method="get" asp-controller="@filterController" asp-action="@filterAction" aria-label="Dashboard filters">
+        <label>Period
+            <select name="Period">
+                <option value="today" selected="@(Model.Filter.Period == "today")">Today</option>
+                <option value="7d" selected="@(Model.Filter.Period == "7d")">Last 7 days</option>
+                <option value="30d" selected="@(Model.Filter.Period == "30d")">Last 30 days</option>
+                <option value="month" selected="@(Model.Filter.Period == "month")">Current month</option>
+                <option value="year" selected="@(Model.Filter.Period == "year")">Current year</option>
+            </select>
+        </label>
+        <label>From <input type="date" name="From" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" /></label>
+        <label>To <input type="date" name="To" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" /></label>
+        @if (Model.Campuses.Count > 1)
+        {
+            <label>Campus
+                <select name="CampusId"><option value="">All authorized</option>
+                    @foreach (var option in Model.Campuses) { <option value="@option.Value" selected="@(option.Value == Model.Filter.CampusId?.ToString())">@option.Label</option> }
+                </select>
+            </label>
+        }
+        @if (Model.Departments.Count > 0)
+        {
+            <label>Department
+                <select name="DepartmentId"><option value="">All authorized</option>
+                    @foreach (var option in Model.Departments) { <option value="@option.Value" selected="@(option.Value == Model.Filter.DepartmentId?.ToString())">@option.Label</option> }
+                </select>
+            </label>
+        }
+        @if (Model.Classes.Count > 0)
+        {
+            <label>Class
+                <select name="ClassId"><option value="">All authorized</option>
+                    @foreach (var option in Model.Classes) { <option value="@option.Value" selected="@(option.Value == Model.Filter.ClassId?.ToString())">@option.Label</option> }
+                </select>
+            </label>
+        }
+        @if (Model.Subjects.Count > 0)
+        {
+            <label>Subject
+                <select name="SubjectId"><option value="">All authorized</option>
+                    @foreach (var option in Model.Subjects) { <option value="@option.Value" selected="@(option.Value == Model.Filter.SubjectId?.ToString())">@option.Label</option> }
+                </select>
+            </label>
+        }
+        <button class="btn btn-primary" type="submit">Apply filters</button>
+        @if (canExport) { <button class="btn btn-secondary" type="submit" asp-controller="RoleDashboard" asp-action="Export">Export CSV</button> }
+        <a class="btn btn-secondary" asp-controller="@filterController" asp-action="@filterAction">Reset</a>
+    </form>
+
+    <section class="analytics-kpis" aria-label="Key performance indicators">
+        @foreach (var kpi in Model.Kpis)
+        {
+            <article class="analytics-kpi analytics-tone-@kpi.Tone">
+                <span class="analytics-kpi-icon"><i class="fa-solid @kpi.Icon" aria-hidden="true"></i></span>
+                <div><p>@kpi.Title</p><strong>@kpi.Value</strong><small>@kpi.Explanation</small>
+                    @if (kpi.ChangePercent.HasValue) { <span class="analytics-change">@(kpi.ChangePercent > 0 ? "+" : "")@kpi.ChangePercent.Value.ToString("0.0")% vs previous period</span> }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(kpi.DrillDownUrl)) { <a href="@kpi.DrillDownUrl" aria-label="Open details for @kpi.Title">View details <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a> }
+            </article>
+        }
+    </section>
+
+    <section class="analytics-grid" aria-label="Charts">
+        @foreach (var chart in Model.Charts)
+        {
+            <article class="analytics-panel">
+                <header><div><h2>@chart.Title</h2><p>@chart.Description</p></div>
+                    @if (!string.IsNullOrWhiteSpace(chart.DrillDownUrl)) { <a href="@chart.DrillDownUrl">Explore</a> }
+                </header>
+                @if (chart.IsEmpty)
+                {
+                    <div class="analytics-empty" role="status"><i class="fa-regular fa-chart-bar" aria-hidden="true"></i><p>@chart.EmptyMessage</p></div>
+                }
+                else
+                {
+                    <div class="analytics-chart-wrap"><canvas id="chart-@chart.Id" data-dashboard-chart="@chart.Id" role="img" aria-label="@chart.AccessibleSummary"></canvas></div>
+                    <script type="application/json" id="chart-data-@chart.Id">@Json.Serialize(chart)</script>
+                    <details class="analytics-table-fallback">
+                        <summary>View accessible data table</summary>
+                        <div class="table-responsive"><table><caption>@chart.AccessibleSummary</caption><thead><tr><th scope="col">Category</th>@foreach (var series in chart.Datasets) { <th scope="col">@series.Label</th> }</tr></thead>
+                            <tbody>@for (var row = 0; row < chart.Labels.Count; row++) { <tr><th scope="row">@chart.Labels[row]</th>@foreach (var series in chart.Datasets) { <td>@(row < series.Values.Count && series.Values[row].HasValue ? series.Values[row]!.Value.ToString("0.##", CultureInfo.CurrentCulture) : "—")</td> }</tr> }</tbody>
+                        </table></div>
+                    </details>
+                }
+            </article>
+        }
+    </section>
+
+    @if (Model.Alerts.Count > 0 || Model.Timeline.Count > 0)
+    {
+        <section class="analytics-lists">
+            @if (Model.Alerts.Count > 0) { <article class="analytics-panel"><header><div><h2>Signals requiring review</h2><p>Explainable indicators only; verify context before taking action.</p></div></header><ul>@foreach (var item in Model.Alerts) { <li class="analytics-alert analytics-tone-@item.Tone"><strong>@item.Label</strong><span>@item.Reason</span>@if (item.Url != null) { <a href="@item.Url">Review</a> }</li> }</ul></article> }
+            @if (Model.Timeline.Count > 0) { <article class="analytics-panel"><header><div><h2>Upcoming</h2><p>Deadlines and scheduled activity.</p></div></header><ul>@foreach (var item in Model.Timeline) { <li class="analytics-alert"><strong>@item.Label</strong><span>@item.Reason</span>@if (item.Url != null) { <a href="@item.Url">Open</a> }</li> }</ul></article> }
+        </section>
+    }
+</section>

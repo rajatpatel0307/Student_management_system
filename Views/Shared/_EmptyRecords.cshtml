@@ -1,0 +1,9 @@
+@model (string Title, string Description, string? Action, string? Label)
+<div class="empty-state">
+    <span class="empty-state-icon"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+    <h3>@Model.Title</h3><p>@Model.Description</p>
+    @if (!string.IsNullOrWhiteSpace(Model.Action))
+    {
+        <a asp-action="@Model.Action" class="btn btn-primary">@Model.Label</a>
+    }
+</div>

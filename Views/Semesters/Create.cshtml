@@ -1,0 +1,11 @@
+@model Semester
+@{
+    ViewData["Title"] = "Add semester";
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Academic structure</span><h1>Add semester</h1><p>Connect a numbered semester to a department and academic year.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form method="post" novalidate><div asp-validation-summary="All"></div><div class="row g-3">
+<div class="col-md-8"><label asp-for="Name" class="form-label required"></label><input asp-for="Name" class="form-control" placeholder="Semester 1" required /><span asp-validation-for="Name"></span></div>
+<div class="col-md-4"><label asp-for="Number" class="form-label required"></label><input asp-for="Number" class="form-control" type="number" min="1" max="12" required /><span asp-validation-for="Number"></span></div>
+<div class="col-md-6"><label asp-for="DepartmentId" class="form-label required">Department</label><select asp-for="DepartmentId" asp-items="ViewBag.Departments" class="form-select" required><option value="">Select department</option></select><span asp-validation-for="DepartmentId"></span></div>
+<div class="col-md-6"><label asp-for="AcademicYearId" class="form-label required">Academic year</label><select asp-for="AcademicYearId" asp-items="ViewBag.Years" class="form-select" required><option value="">Select academic year</option></select><span asp-validation-for="AcademicYearId"></span></div>
+</div><div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit">Save semester</button></div></form></div>

@@ -1,0 +1,12 @@
+@model Fee
+@{
+    ViewData["Title"] = "Add fee schedule";
+    var classes = ViewBag.Classes as IEnumerable<Class> ?? Enumerable.Empty<Class>();
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Finance</span><h1>Add fee schedule</h1><p>Define the expected amount and due date for a class and term.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form method="post" novalidate><div asp-validation-summary="All"></div><div class="row g-3">
+<div class="col-md-6"><label asp-for="ClassId" class="form-label required">Class</label><select asp-for="ClassId" class="form-select" required><option value="">Select class</option>@foreach (var item in classes) { <option value="@item.Id">@item.Name</option> }</select><span asp-validation-for="ClassId"></span></div>
+<div class="col-md-6"><label asp-for="Term" class="form-label required"></label><input asp-for="Term" class="form-control" placeholder="e.g. Semester 1" required /><span asp-validation-for="Term"></span></div>
+<div class="col-md-6"><label asp-for="Amount" class="form-label required"></label><input asp-for="Amount" class="form-control" type="number" min=".01" step=".01" required /><span asp-validation-for="Amount"></span></div>
+<div class="col-md-6"><label asp-for="DueDate" class="form-label required">Due date</label><input asp-for="DueDate" class="form-control" type="date" required /><span asp-validation-for="DueDate"></span></div>
+</div><div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit">Create fee schedule</button></div></form></div>

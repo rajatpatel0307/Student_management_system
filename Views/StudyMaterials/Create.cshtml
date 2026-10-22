@@ -1,0 +1,21 @@
+@{
+    ViewData["Title"] = "Upload study material";
+    var subjects = ViewBag.Subjects as IEnumerable<Subject> ?? Enumerable.Empty<Subject>();
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Learning resources</span><h1>Upload study material</h1><p>Share a PDF, Word document or PowerPoint with Students in an assigned subject.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card">
+@if (!subjects.Any())
+{
+    <div class="empty-state"><span class="empty-state-icon"><i class="fa-solid fa-book-open"></i></span><h2>No subjects assigned</h2><p>Materials can be uploaded only for subjects assigned to your profile.</p></div>
+}
+else
+{
+    <form method="post" enctype="multipart/form-data" novalidate>
+        <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+        <div class="mb-3"><label class="form-label required" for="subjectId">Subject</label><select id="subjectId" name="subjectId" class="form-select" required><option value="">Select subject</option>@foreach (var item in subjects) { <option value="@item.Id">@item.Name · @item.Class?.Name</option> }</select></div>
+        <div class="mb-3"><label class="form-label required" for="title">Material title</label><input id="title" name="title" class="form-control" required maxlength="160" placeholder="e.g. Week 4 lecture notes" /></div>
+        <div class="mb-3"><label class="form-label required" for="file">File</label><div class="file-drop"><span class="empty-state-icon mx-auto"><i class="fa-solid fa-cloud-arrow-up"></i></span><p class="mb-2">Choose a PDF, DOCX or PPTX file up to 10 MB. The server verifies the real file format before saving.</p><input id="file" name="file" type="file" class="form-control" accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation" required /></div></div>
+        <div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="fa-solid fa-cloud-arrow-up me-1"></i> Upload material</button></div>
+    </form>
+}
+</div>

@@ -1,0 +1,59 @@
+@model Student_Management_System.Models.PagedResult<Exam>
+@using Student_Management_System.Models
+@{
+    ViewData["Title"] = "Exams";
+    var query = ViewContext.HttpContext.Request.Query;
+    var canManage = User.IsInRole("Admin") || User.IsInRole("SuperAdmin") || User.IsInRole("ExaminationOfficer");
+}
+<partial name="_ManagementHeader" model="@(new ManagementHeaderViewModel {
+    Eyebrow = "Assessment",
+    Title = "Exams",
+    Description = "Track schedules, configurable grading rules, moderation, and publication status.",
+    PrimaryAction = canManage ? "Create" : null,
+    PrimaryLabel = "Add exam",
+    PrimaryController = "Exam"
+})" />
+<partial name="_StatCards" model="@((IEnumerable<StatCardViewModel>)ViewBag.Stats)" />
+<form method="get" class="card filter-panel">
+    <div class="filter-panel-grid">
+        <div><label class="form-label" for="field-exam-index-search-831">Search exams</label><input id="field-exam-index-search-831" name="search" value="@Model.Search" class="form-control" placeholder="Exam name or type" /></div>
+        <div><label class="form-label" for="field-exam-index-status-995">Status</label><select id="field-exam-index-status-995" name="status" class="form-select"><option value="">All</option><option value="upcoming" selected="@(query["status"] == "upcoming")">Upcoming</option><option value="completed" selected="@(query["status"] == "completed")">Completed</option><option value="published" selected="@(query["status"] == "published")">Published</option></select></div>
+        <div class="filter-actions"><button class="btn btn-primary">Apply</button><a asp-action="Index" class="btn btn-outline-secondary">Reset</a></div>
+    </div>
+</form>
+<section class="card table-card">
+    <div class="table-responsive">
+        <table class="table" data-enhanced="true">
+            <thead><tr><th>Exam</th><th>Type</th><th>Date</th><th>Rules</th><th>Marks entered</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            @foreach (var exam in Model.Items)
+            {
+                var tone = exam.Status switch { ExamLifecycle.Published => "bg-success", ExamLifecycle.Locked => "bg-warning", ExamLifecycle.Archived => "bg-secondary", _ => "bg-info" };
+                <tr>
+                    <td><a asp-action="Details" asp-route-id="@exam.Id" class="record-link">@exam.Name</a></td>
+                    <td>@exam.ExamType</td>
+                    <td>@exam.ExamDate.ToString("dd MMM yyyy")</td>
+                    <td>@exam.PassMarks.ToString("0.##") pass / @exam.MaximumMarks.ToString("0.##") max</td>
+                    <td>@exam.Marks.Count</td>
+                    <td><span class="badge @tone">@exam.Status</span></td>
+                    <td class="text-end">
+                        <div class="table-actions">
+                            <a asp-action="Details" asp-route-id="@exam.Id" class="btn btn-sm btn-outline-primary">View</a>
+                            @if (canManage && exam.Status is not (ExamLifecycle.Published or ExamLifecycle.Archived))
+                            {
+                                <a asp-action="Edit" asp-route-id="@exam.Id" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                <form asp-action="SetLocked" method="post">
+                                    <input type="hidden" name="id" value="@exam.Id" />
+                                    <input type="hidden" name="locked" value="@(exam.Status != ExamLifecycle.Locked)" />
+                                    <button class="btn btn-sm btn-outline-secondary" data-confirm="Change this exam lifecycle state?">@(exam.Status == ExamLifecycle.Locked ? "Reopen" : "Lock")</button>
+                                </form>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <partial name="_ServerPagination" model="Model" />
+</section>

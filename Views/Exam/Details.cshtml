@@ -1,0 +1,45 @@
+@model Student_Management_System.Models.ExamDetailsViewModel
+@using Student_Management_System.Models
+@{
+    ViewData["Title"] = Model.Exam.Name;
+    var canModerate = User.IsInRole("Admin") || User.IsInRole("SuperAdmin") || User.IsInRole("ExaminationOfficer");
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">Assessment / Exams / #@Model.Exam.Id</span><h1>@Model.Exam.Name</h1><p>@Model.Exam.ExamType · @Model.Exam.ExamDate.ToString("dd MMMM yyyy") · @Model.Exam.Status</p></div>
+    <div class="page-actions">
+        <button type="button" data-print-page class="btn btn-outline-secondary"><i class="fa-solid fa-print"></i> Print</button>
+        @if (canModerate && Model.Exam.Status is not (ExamLifecycle.Published or ExamLifecycle.Archived)) { <a asp-action="Edit" asp-route-id="@Model.Exam.Id" class="btn btn-primary">Edit exam</a> }
+        @if (canModerate && Model.Exam.Status == ExamLifecycle.Locked)
+        {
+            <form asp-action="Publish" method="post"><input type="hidden" name="id" value="@Model.Exam.Id" /><button class="btn btn-success" data-confirm="Publish all approved marks to Students and Guardians?">Publish results</button></form>
+        }
+        <a asp-action="Index" class="btn btn-outline-secondary">Back</a>
+    </div>
+</div>
+<div class="metric-grid mb-3">
+    <article class="metric-card"><span class="metric-label">Evaluated students</span><strong class="metric-value">@Model.Marks.Select(m => m.StudentId).Distinct().Count()</strong></article>
+    <article class="metric-card success"><span class="metric-label">Passed</span><strong class="metric-value">@Model.Passed</strong></article>
+    <article class="metric-card danger"><span class="metric-label">Failed</span><strong class="metric-value">@Model.Failed</strong></article>
+    <article class="metric-card info"><span class="metric-label">Normalized average</span><strong class="metric-value">@Model.AverageScore.ToString("0.0")%</strong></article>
+</div>
+<section class="card table-card">
+    <div class="table-responsive"><table class="table"><thead><tr><th>Student</th><th>Subject</th><th>Score</th><th>Grade</th><th>Professor</th><th>Approval</th><th class="text-end">Action</th></tr></thead><tbody>
+    @foreach (var mark in Model.Marks)
+    {
+        <tr>
+            <td><a asp-controller="Students" asp-action="Details" asp-route-id="@mark.StudentId" asp-fragment="marks" class="record-link">@mark.Student.FullName</a></td>
+            <td><a asp-controller="Subject" asp-action="Details" asp-route-id="@mark.SubjectId" class="record-link">@mark.Subject.Name</a></td>
+            <td>@mark.Score.ToString("0.##")/@Model.Exam.MaximumMarks.ToString("0.##")</td>
+            <td>@mark.Grade</td>
+            <td>@(mark.EnteredByTeacher?.FullName ?? "—")</td>
+            <td><span class="badge @(mark.IsApproved ? "bg-success" : "bg-warning")">@(mark.IsApproved ? "Approved" : "Pending")</span></td>
+            <td class="text-end">
+                @if (canModerate && !mark.IsApproved && Model.Exam.Status is ExamLifecycle.OpenForEntry or ExamLifecycle.Locked)
+                {
+                    <form asp-controller="Mark" asp-action="Approve" method="post"><input type="hidden" name="id" value="@mark.Id" /><button class="btn btn-sm btn-outline-success">Approve</button></form>
+                }
+            </td>
+        </tr>
+    }
+    </tbody></table></div>
+</section>

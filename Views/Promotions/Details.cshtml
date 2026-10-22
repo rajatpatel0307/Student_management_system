@@ -1,0 +1,45 @@
+@model Student_Management_System.Models.PromotionDetailsViewModel
+@{
+    ViewData["Title"] = $"Promotion {Model.Batch.BatchNumber}";
+    var batch = Model.Batch;
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">Promotion / @batch.BatchNumber</span><h1>@batch.SourceClass.Name · @batch.SourceAcademicYear.Name</h1><p>Destination @batch.DestinationAcademicYear.Name · @batch.DestinationClass?.Name / @batch.DestinationSection?.Name</p></div>
+    <div class="page-actions"><span class="badge bg-info">@batch.Status</span><a asp-action="Index" class="btn btn-outline-secondary">Back</a></div>
+</div>
+<div class="metric-grid mb-3">
+    <article class="metric-card"><span class="metric-label">Students</span><strong class="metric-value">@Model.Entries.Count</strong><span class="metric-note">Enrollment-based cohort</span></article>
+    <article class="metric-card success"><span class="metric-label">Eligible</span><strong class="metric-value">@Model.Entries.Count(e => e.IsEligible)</strong><span class="metric-note">Meets configured rules</span></article>
+    <article class="metric-card warning"><span class="metric-label">Retained</span><strong class="metric-value">@Model.Entries.Count(e => e.Decision == StudentLifecycleDecision.Retained)</strong><span class="metric-note">Current review decision</span></article>
+    <article class="metric-card info"><span class="metric-label">Promoted</span><strong class="metric-value">@Model.Entries.Count(e => e.Decision == StudentLifecycleDecision.Promoted)</strong><span class="metric-note">Current review decision</span></article>
+</div>
+<form asp-action="SaveDecisions" method="post" data-track-changes>
+    <input type="hidden" name="id" value="@batch.Id" />
+    <section class="card table-card">
+        <div class="table-responsive"><table class="table"><thead><tr><th>Student</th><th>Attendance</th><th>Result</th><th>Outstanding</th><th>Eligibility</th><th>Decision</th><th>Reason</th></tr></thead><tbody>
+        @for(var i = 0; i < Model.Entries.Count; i++)
+        {
+            var entry = Model.Entries[i];
+            <tr>
+                <td><input type="hidden" name="decisions[@i].EntryId" value="@entry.Id" /><a asp-controller="Students" asp-action="Details" asp-route-id="@entry.StudentId" class="record-link">@entry.Student.FullName</a></td>
+                <td>@entry.AttendancePercent.ToString("0.0")%</td><td>@entry.ResultPercent.ToString("0.0")%</td><td>@entry.OutstandingBalance.ToString("C")</td>
+                <td><span class="badge @(entry.IsEligible ? "bg-success" : "bg-danger")">@(entry.IsEligible ? "Eligible" : "Review required")</span></td>
+                <td><select name="decisions[@i].Decision" aria-label="Promotion decision for @entry.Student.FullName" class="form-select form-select-sm" disabled="@(batch.Status != PromotionBatchStatus.Draft ? "disabled" : null)">@foreach(var value in Enum.GetValues<StudentLifecycleDecision>().Where(x => x != StudentLifecycleDecision.Pending)){<option value="@value" selected="@(entry.Decision == value)">@value</option>}</select></td>
+                <td><input name="decisions[@i].Reason" aria-label="Promotion reason for @entry.Student.FullName" value="@entry.Reason" class="form-control form-control-sm" maxlength="500" disabled="@(batch.Status != PromotionBatchStatus.Draft ? "disabled" : null)" /></td>
+            </tr>
+        }
+        </tbody></table></div>
+    </section>
+    @if(batch.Status == PromotionBatchStatus.Draft)
+    {
+        <div class="sticky-form-actions"><button class="btn btn-outline-primary" type="submit">Save decisions</button><button class="btn btn-primary" type="submit" asp-action="Submit" data-confirm="Submit this complete promotion batch for ordered approval?">Submit for approval</button></div>
+    }
+</form>
+@if(batch.Status == PromotionBatchStatus.Submitted && (User.IsInRole("Admin") || User.IsInRole("SuperAdmin")))
+{
+    <section class="card section-card mt-3"><h2>Administrative review</h2><form asp-action="Review" method="post"><input type="hidden" name="BatchId" value="@batch.Id" /><input type="hidden" name="RowVersion" value="@Convert.ToBase64String(batch.RowVersion)" /><label class="form-label" for="reviewComment">Review comment</label><textarea id="reviewComment" name="Comment" class="form-control" maxlength="1000"></textarea><div class="form-actions"><button name="Approve" value="false" class="btn btn-danger" data-confirm="Reject this promotion batch?">Reject</button><button name="Approve" value="true" class="btn btn-success" data-confirm="Approve this promotion batch? Enrollment changes are applied separately.">Approve</button></div></form></section>
+}
+@if(batch.Status == PromotionBatchStatus.Approved && (User.IsInRole("Admin") || User.IsInRole("SuperAdmin")))
+{
+    <section class="card section-card mt-3"><h2>Apply approved changes</h2><p>This closes source enrollments, creates destination enrollments, updates lifecycle status, and notifies affected accounts in one transaction.</p><form asp-action="Apply" method="post"><input type="hidden" name="id" value="@batch.Id" /><button class="btn btn-primary" data-confirm="Apply all approved promotion decisions now?">Apply promotion batch</button></form></section>
+}

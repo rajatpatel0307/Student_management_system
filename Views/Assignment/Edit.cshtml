@@ -1,0 +1,16 @@
+@model AssignmentInputModel
+@{ ViewData["Title"] = $"Edit {Model.Title}"; var subjects=ViewBag.Subjects as IEnumerable<Subject>??Enumerable.Empty<Subject>(); }
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Assignments / #@Model.Id / Edit</span><h1>Edit @Model.Title</h1><p>Only authorized department or subject assignments are available.</p></div><div class="page-actions"><a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Back to details</a></div></div>
+<form asp-action="Edit" asp-route-id="@Model.Id" method="post" novalidate data-track-changes class="edit-shell"><input asp-for="Id" type="hidden" /><div asp-validation-summary="All" class="alert alert-danger"></div><section class="edit-section"><div class="row g-3">
+<div class="col-12"><label asp-for="Title" class="form-label required"></label><input asp-for="Title" class="form-control" maxlength="160" required /><span asp-validation-for="Title"></span></div>
+<div class="col-md-6"><label asp-for="SubjectId" class="form-label required">Subject</label><select asp-for="SubjectId" class="form-select" required>@foreach(var s in subjects){<option value="@s.Id" selected="@(s.Id==Model.SubjectId?"selected":null)">@s.Name · @(s.Class?.Name ?? "Unassigned class")</option>}</select><span asp-validation-for="SubjectId"></span></div>
+<div class="col-md-6"><label asp-for="DueUtc" class="form-label required">Due date and time</label><input asp-for="DueUtc" type="datetime-local" class="form-control" required /><span asp-validation-for="DueUtc"></span></div>
+<div class="col-md-6"><label asp-for="PublishUtc" class="form-label">Publish at</label><input asp-for="PublishUtc" type="datetime-local" class="form-control" /></div>
+<div class="col-md-3"><label asp-for="Status" class="form-label"></label><select asp-for="Status" class="form-select"><option>Draft</option><option>Scheduled</option><option>Published</option><option>Closed</option></select><span asp-validation-for="Status"></span></div>
+<div class="col-md-3"><label asp-for="MaximumScore" class="form-label"></label><input asp-for="MaximumScore" min="1" step="0.01" class="form-control" /></div>
+<div class="col-md-3"><label asp-for="MaximumSubmissions" class="form-label"></label><input asp-for="MaximumSubmissions" min="1" max="20" class="form-control" /></div>
+<div class="col-md-3"><label asp-for="LatePenaltyPercent" class="form-label">Late penalty %</label><input asp-for="LatePenaltyPercent" min="0" max="100" step="0.01" class="form-control" /></div>
+<div class="col-12 form-check ms-2"><input asp-for="AllowLateSubmission" class="form-check-input" /><label asp-for="AllowLateSubmission" class="form-check-label">Allow late submissions</label></div>
+<div class="col-12"><label asp-for="Instructions" class="form-label required"></label><textarea asp-for="Instructions" class="form-control" rows="7" maxlength="4000" required></textarea><span asp-validation-for="Instructions"></span></div>
+</div></section><div class="sticky-form-actions"><a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a><div><button type="reset" class="btn btn-outline-secondary">Reset</button><button type="submit" class="btn btn-primary">Save changes</button></div></div></form>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

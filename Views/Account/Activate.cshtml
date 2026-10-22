@@ -1,0 +1,26 @@
+@{
+    ViewData["Title"] = "Activate account";
+}
+<div class="auth-shell">
+    <section class="auth-card" aria-labelledby="activationTitle">
+        <span class="eyebrow">Secure onboarding</span>
+        <h1 id="activationTitle">Activate your account</h1>
+        <p>Create a password to complete your EduFlow enrollment.</p>
+        <form asp-action="Activate" method="post" novalidate>
+            <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+            <input type="hidden" name="email" value="@ViewBag.Email" />
+            <input type="hidden" name="token" value="@ViewBag.Token" />
+            <div class="mb-3">
+                <label class="form-label required" for="newPassword">Password</label>
+                <input class="form-control" id="newPassword" name="newPassword"
+                       type="password" autocomplete="new-password" minlength="10" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label required" for="confirmPassword">Confirm password</label>
+                <input class="form-control" id="confirmPassword" name="confirmPassword"
+                       type="password" autocomplete="new-password" minlength="10" required />
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Activate account</button>
+        </form>
+    </section>
+</div>

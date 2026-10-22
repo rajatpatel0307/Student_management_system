@@ -1,0 +1,149 @@
+@model MarksEntryViewModel
+@{
+    ViewData["Title"] = "Marks entry";
+    var subjects = ViewBag.Subjects as IEnumerable<Subject> ?? Enumerable.Empty<Subject>();
+    var exams = ViewBag.Exams as IEnumerable<Exam> ?? Enumerable.Empty<Exam>();
+    var selectedExam = ViewBag.SelectedExam as Exam;
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">Assessment workspace</span><h1>Marks entry</h1><p>Select an exam and subject, then enter marks for the complete student list.</p></div>
+</div>
+
+<form method="get" class="card section-card mb-3">
+    <div class="marks-toolbar">
+        <div><label class="form-label required" for="examFilter">Exam</label><select id="examFilter" name="examId" class="form-select" required><option value="">Select exam</option>@foreach (var exam in exams) { <option value="@exam.Id" selected="@(Model.ExamId == exam.Id ? "selected" : null)">@exam.Name · @exam.ExamDate.ToString("dd MMM yyyy")</option> }</select></div>
+        <div><label class="form-label required" for="subjectFilter">Subject</label><select id="subjectFilter" name="subjectId" class="form-select" required><option value="">Select subject</option>@foreach (var subject in subjects) { <option value="@subject.Id" selected="@(Model.SubjectId == subject.Id ? "selected" : null)">@subject.Name · @subject.Class?.Name</option> }</select></div>
+        <div><label class="form-label" for="maximumMarks">Maximum marks</label><input id="maximumMarks" class="form-control" value="@Model.MaximumMarks" readonly /></div>
+        <div><label class="form-label" for="passingMarks">Passing marks</label><input id="passingMarks" class="form-control" value="@Model.PassingMarks" readonly /></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-list me-1"></i> Load students</button></div>
+</form>
+
+@if (Model.SubjectId == 0 || Model.ExamId == 0)
+{
+    <div class="empty-state card"><span class="empty-state-icon"><i class="fa-solid fa-pen-to-square"></i></span><h2>Select an exam and subject</h2><p>The authorized student list will load here for fast, validated bulk entry.</p></div>
+}
+else if (selectedExam?.Status != ExamLifecycle.OpenForEntry)
+{
+    <div class="error-state card"><span class="error-state-icon"><i class="fa-solid fa-lock"></i></span><h2>This exam is locked</h2><p>Marks can no longer be changed. Ask an authorized administrator to unlock the exam if a correction is required.</p></div>
+}
+else if (!Model.Entries.Any())
+{
+    <div class="empty-state card"><span class="empty-state-icon"><i class="fa-solid fa-users-slash"></i></span><h2>No students found</h2><p>No student is enrolled in the selected subject or class.</p></div>
+}
+else
+{
+    <form asp-action="SaveBulk" method="post" id="marksForm">
+        <input asp-for="SubjectId" type="hidden" />
+        <input asp-for="ExamId" type="hidden" />
+        <input asp-for="MaximumMarks" type="hidden" />
+        <input asp-for="PassingMarks" type="hidden" />
+        <section class="card table-card">
+            <div class="table-responsive">
+                <table class="table align-middle" id="marksTable">
+                    <thead><tr><th>Student</th><th>Section</th><th>Marks / @Model.MaximumMarks</th><th>Grade preview</th><th>Result</th><th>Remarks</th></tr></thead>
+                    <tbody>
+                    @for (var i = 0; i < Model.Entries.Count; i++)
+                    {
+                        var entry = Model.Entries[i];
+                        <tr>
+                            <td>
+                                <strong>@entry.StudentName</strong><small class="d-block text-muted">Student #@entry.StudentId</small>
+                                <input asp-for="Entries[i].StudentId" type="hidden" />
+                                <input asp-for="Entries[i].StudentName" type="hidden" />
+                                <input asp-for="Entries[i].SectionName" type="hidden" />
+                                <input asp-for="Entries[i].IsApproved" type="hidden" />
+                            </td>
+                            <td><span class="badge bg-primary">@entry.SectionName</span></td>
+                            <td>
+                                @if (entry.IsApproved)
+                                {
+                                    <input asp-for="Entries[i].Score" class="form-control marks-input" type="number" min="0" max="@Model.MaximumMarks" step="0.01" readonly data-score />
+                                }
+                                else
+                                {
+                                    <input asp-for="Entries[i].Score" class="form-control marks-input" type="number" min="0" max="@Model.MaximumMarks" step="0.01" placeholder="—" data-score />
+                                }
+                            </td>
+                            <td><span class="grade-preview" data-grade>—</span></td>
+                            <td><span class="badge bg-info" data-result>Not entered</span></td>
+                            <td>
+                                @if (entry.IsApproved)
+                                {
+                                    <input asp-for="Entries[i].Remarks" class="form-control" maxlength="500" readonly />
+                                }
+                                else
+                                {
+                                    <input asp-for="Entries[i].Remarks" class="form-control" maxlength="500" placeholder="Optional remark" />
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <div class="card section-card mt-3">
+            <div class="d-flex flex-wrap align-items-center gap-3">
+                <div class="legend-list flex-grow-1"><div class="legend-item"><span>Entered</span><strong id="marksEntered">0 / @Model.Entries.Count</strong></div><div class="progress"><div class="progress-bar" id="marksProgress" style="width:0"></div></div></div>
+                <div class="page-actions">
+                    <button class="btn btn-outline-secondary" type="button" id="saveMarksDraft"><i class="fa-regular fa-floppy-disk me-1"></i> Save browser draft</button>
+                    <button class="btn btn-primary" type="submit" data-confirm="Save these marks? Approved or locked marks cannot be changed."><i class="fa-solid fa-paper-plane me-1"></i> Save marks</button>
+                </div>
+            </div>
+        </div>
+    </form>
+}
+
+@section Scripts {
+<script nonce="@(ViewContext.HttpContext.Items["CspNonce"])">
+(() => {
+    const form = document.getElementById('marksForm');
+    if (!form) return;
+    const scores = [...form.querySelectorAll('[data-score]')];
+    const draftKey = `marks:@Model.SubjectId:@Model.ExamId`;
+    function grade(score) {
+        if (score === '' || Number.isNaN(Number(score))) return '—';
+        const value = Number(score) * 100 / Number('@Model.MaximumMarks.ToString(System.Globalization.CultureInfo.InvariantCulture)');
+        return value >= 90 ? 'A+' : value >= 80 ? 'A' : value >= 70 ? 'B' : value >= 60 ? 'C' : value >= 50 ? 'D' : 'F';
+    }
+    function refresh() {
+        let entered = 0;
+        scores.forEach(input => {
+            const value = input.value;
+            const row = input.closest('tr');
+            row.querySelector('[data-grade]').textContent = grade(value);
+            const result = row.querySelector('[data-result]');
+            if (value === '') {
+                result.textContent = 'Not entered'; result.className = 'badge bg-info';
+            } else {
+                entered++;
+                const passed = Number(value) >= Number('@Model.PassingMarks.ToString(System.Globalization.CultureInfo.InvariantCulture)');
+                result.textContent = passed ? 'Pass' : 'Needs improvement';
+                result.className = `badge ${passed ? 'bg-success' : 'bg-danger'}`;
+            }
+        });
+        document.getElementById('marksEntered').textContent = `${entered} / ${scores.length}`;
+        document.getElementById('marksProgress').style.width = `${scores.length ? entered * 100 / scores.length : 0}%`;
+    }
+    scores.forEach(input => input.addEventListener('input', refresh));
+    document.getElementById('saveMarksDraft').addEventListener('click', () => {
+        const values = [...new FormData(form).entries()].filter(([name]) => name.includes('Entries['));
+        localStorage.setItem(draftKey, JSON.stringify(values));
+        window.smsUi.showToast('Marks draft saved on this device.', 'success');
+    });
+    try {
+        const values = JSON.parse(localStorage.getItem(draftKey));
+        if (values) {
+            values.forEach(([name, value]) => {
+                const input = form.elements[name];
+                if (input && !input.readOnly && value !== '') input.value = value;
+            });
+            window.smsUi.showToast('Your saved marks draft was restored.', 'info');
+        }
+    } catch {}
+    form.addEventListener('submit', () => localStorage.removeItem(draftKey));
+    refresh();
+})();
+</script>
+}

@@ -1,0 +1,26 @@
+@model Student_Management_System.Models.CommunicationInput
+@{
+    ViewData["Title"] = "Compose communication";
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Communication center</span><h1>Compose communication</h1><p>Target only the intended audience and select durable delivery channels.</p></div></div>
+<form method="post" data-track-changes>
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <section class="card section-card">
+        <div class="row g-3">
+            <div class="col-md-8"><label asp-for="Title" class="form-label required"></label><input asp-for="Title" class="form-control" /></div>
+            <div class="col-md-4"><label asp-for="Priority" class="form-label"></label><select asp-for="Priority" class="form-select"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
+            <div class="col-12"><label asp-for="Body" class="form-label required"></label><textarea asp-for="Body" rows="8" class="form-control"></textarea><span asp-validation-for="Body"></span></div>
+            <div class="col-md-6"><label asp-for="ScheduledLocal" class="form-label">Schedule</label><input asp-for="ScheduledLocal" type="datetime-local" class="form-control" /></div>
+            <div class="col-md-6"><label asp-for="ExpiresLocal" class="form-label">Expires</label><input asp-for="ExpiresLocal" type="datetime-local" class="form-control" /></div>
+        </div>
+    </section>
+    <section class="card section-card mt-3">
+        <div class="section-title-row"><div><h2>Audience and channels</h2><p>Recipients are resolved on the backend and recorded before dispatch.</p></div></div>
+        <div class="row g-3">
+            <div class="col-md-4"><label asp-for="AudienceType" class="form-label required"></label><select asp-for="AudienceType" class="form-select" data-audience-type><option>Role</option><option>Department</option><option>Class</option><option>Section</option><option>User</option></select></div>
+            <div class="col-md-8"><label asp-for="AudienceValue" class="form-label required">Audience value</label><input asp-for="AudienceValue" class="form-control" placeholder="Role name, record ID, or exact user ID" /><div class="form-text">Use a role name or the numeric ID shown in the relevant management page.</div></div>
+            <div class="col-12 d-flex gap-4 flex-wrap"><label class="form-check"><input asp-for="InApp" class="form-check-input" /> <span class="form-check-label">In-app</span></label><label class="form-check"><input asp-for="Email" class="form-check-input" /> <span class="form-check-label">Email</span></label><label class="form-check"><input asp-for="Sms" class="form-check-input" /> <span class="form-check-label">SMS</span></label></div>
+        </div>
+    </section>
+    <div class="sticky-form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" data-confirm="Queue this communication for the selected audience?">Queue communication</button></div>
+</form>

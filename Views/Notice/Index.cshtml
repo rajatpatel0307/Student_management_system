@@ -1,0 +1,35 @@
+@model Student_Management_System.Models.PagedResult<Notice>
+@using Student_Management_System.Models
+@{
+    ViewData["Title"] = "Announcements";
+}
+<partial name="_ManagementHeader" model="@(new ManagementHeaderViewModel{Eyebrow="Communication",Title="Announcements",Description="View announcements addressed to your role or department.",PrimaryAction=User.IsInRole("Admin")||User.IsInRole("SuperAdmin")||User.IsInRole("HOD")?"Create":null,PrimaryLabel="Publish announcement",PrimaryController="Notice"})"/>
+<partial name="_StatCards" model="@((IEnumerable<StatCardViewModel>)ViewBag.Stats)"/>
+<form method="get" class="card filter-panel"><div class="filter-panel-grid"><div><label class="form-label" for="field-notice-index-search-673">Search announcements</label><input id="field-notice-index-search-673" name="search" value="@Model.Search" class="form-control" placeholder="Title or message"/></div><div class="filter-actions"><button class="btn btn-primary">Apply</button><a asp-action="Index" class="btn btn-outline-secondary">Reset</a></div></div></form>
+<div class="row g-3">
+    @foreach (var notice in Model.Items)
+    {
+        var message = notice.Message ?? string.Empty;
+        var summary = message.Length > 180 ? message[..180] + "…" : message;
+        <div class="col-lg-6">
+            <a asp-action="Details" asp-route-id="@notice.Id" class="card clickable section-card h-100">
+                <div class="section-title-row">
+                    <div>
+                        <span class="badge bg-info">@notice.TargetRole</span>
+                        <h2 class="mt-2">@notice.Title</h2>
+                        <p>@notice.CreatedDate.ToString("dd MMMM yyyy")</p>
+                    </div>
+                    <span class="metric-icon"><i class="fa-solid fa-bullhorn"></i></span>
+                </div>
+                <p class="text-muted">@summary</p>
+            </a>
+        </div>
+    }
+    @if (Model.Items.Count == 0)
+    {
+        <div class="col-12">
+            <partial name="_EmptyRecords" model="@(("No announcements", "No announcements are currently available for your audience.", "", ""))" />
+        </div>
+    }
+</div>
+<div class="card mt-3"><partial name="_ServerPagination" model="Model"/></div>

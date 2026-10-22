@@ -1,0 +1,7 @@
+@model Student_Management_System.Models.PagedResult<AuditLog>
+@using Student_Management_System.Models
+@{ViewData["Title"]="Activity log";}
+<partial name="_ManagementHeader" model="@(new ManagementHeaderViewModel{Eyebrow="Security and accountability",Title="Activity log",Description="Search important actions recorded across protected modules."})"/>
+<partial name="_StatCards" model="@((IEnumerable<StatCardViewModel>)ViewBag.Stats)"/>
+<form method="get" class="card filter-panel"><div class="filter-panel-grid"><div><label class="form-label" for="field-superadmin-audit-search-517">Search activity</label><input id="field-superadmin-audit-search-517" name="search" value="@Model.Search" class="form-control" placeholder="Action, entity or reference"/></div><div class="filter-actions"><button class="btn btn-primary">Apply</button><a asp-action="Audit" class="btn btn-outline-secondary">Reset</a></div></div></form>
+<section class="card table-card"><div class="table-responsive"><table class="table" data-enhanced="true"><thead><tr><th>Date</th><th>User</th><th>Action</th><th>Entity</th><th>Reference</th><th>IP</th></tr></thead><tbody>@foreach(var item in Model.Items){<tr><td>@item.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td><td><code>@item.UserId</code></td><td><span class="badge bg-primary">@item.Action</span></td><td>@item.EntityName</td><td>@item.EntityId</td><td>@(item.IpAddress??"—")</td></tr>}</tbody></table></div><partial name="_ServerPagination" model="Model"/></section>

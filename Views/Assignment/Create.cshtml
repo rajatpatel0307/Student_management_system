@@ -1,0 +1,29 @@
+@model AssignmentInputModel
+@{
+    ViewData["Title"] = "Create assignment";
+    var subjects = ViewBag.Subjects as IEnumerable<Subject> ?? Enumerable.Empty<Subject>();
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">Coursework</span><h1>Create assignment</h1><p>Publish clear instructions and a due date for one of your assigned subjects.</p></div>
+    <div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div>
+</div>
+<div class="card section-card form-card">
+    @if (!subjects.Any())
+    {
+        <div class="empty-state"><span class="empty-state-icon"><i class="fa-solid fa-book-open"></i></span><h2>No subjects assigned</h2><p>An assignment can be created only after a subject is assigned to your profile.</p></div>
+    }
+    else
+    {
+        <form method="post" novalidate>
+            <div asp-validation-summary="All"></div>
+            <div class="form-section">
+                <div class="form-section-title"><h2>Assignment details</h2><p>Students will see this information on their dashboard.</p></div>
+                <div class="mb-3"><label asp-for="SubjectId" class="form-label required">Subject</label><select asp-for="SubjectId" class="form-select" required><option value="">Select an assigned subject</option>@foreach (var item in subjects) { <option value="@item.Id">@item.Name · @item.Class?.Name</option> }</select><span asp-validation-for="SubjectId"></span></div>
+                <div class="mb-3"><label asp-for="Title" class="form-label required"></label><input asp-for="Title" class="form-control" placeholder="e.g. Data structures problem set" required /><span asp-validation-for="Title"></span></div>
+                <div class="mb-3"><label asp-for="Instructions" class="form-label required"></label><textarea asp-for="Instructions" class="form-control" rows="7" placeholder="Explain the task, expected format and assessment criteria…" required></textarea><span asp-validation-for="Instructions"></span></div>
+                <div class="row g-3"><div class="col-md-6"><label asp-for="DueUtc" class="form-label required">Due date and time</label><input asp-for="DueUtc" type="datetime-local" class="form-control" required /><span asp-validation-for="DueUtc"></span></div><div class="col-md-6"><label asp-for="PublishUtc" class="form-label">Schedule publication</label><input asp-for="PublishUtc" type="datetime-local" class="form-control" /><span asp-validation-for="PublishUtc"></span></div><div class="col-md-4"><label asp-for="MaximumScore" class="form-label">Maximum score</label><input asp-for="MaximumScore" min="1" step="0.01" class="form-control" /></div><div class="col-md-4"><label asp-for="MaximumSubmissions" class="form-label">Maximum submissions</label><input asp-for="MaximumSubmissions" min="1" max="20" class="form-control" /></div><div class="col-md-4"><label asp-for="SubmissionType" class="form-label">Submission type</label><select asp-for="SubmissionType" class="form-select"><option>TextOrFile</option><option>Text</option><option>File</option></select></div><div class="col-md-6"><label asp-for="Status" class="form-label">Initial status</label><select asp-for="Status" class="form-select"><option>Draft</option><option>Scheduled</option><option>Published</option></select><span asp-validation-for="Status"></span></div><div class="col-md-6"><label asp-for="LatePenaltyPercent" class="form-label">Late penalty %</label><input asp-for="LatePenaltyPercent" min="0" max="100" step="0.01" class="form-control" /><span asp-validation-for="LatePenaltyPercent"></span></div><div class="col-12 form-check ms-2"><input asp-for="AllowLateSubmission" class="form-check-input" /><label asp-for="AllowLateSubmission" class="form-check-label">Allow late submissions</label></div></div>
+            </div>
+            <div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i> Save assignment</button></div>
+        </form>
+    }
+</div>

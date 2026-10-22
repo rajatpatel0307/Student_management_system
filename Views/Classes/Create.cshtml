@@ -1,0 +1,9 @@
+@model Class
+@{ ViewData["Title"] = "Add class"; }
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Academic structure</span><h1>Add class</h1><p>Create a class group and connect it to the academic hierarchy.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form asp-action="Create" method="post" novalidate><div asp-validation-summary="All"></div><div class="row g-3">
+<div class="col-md-6"><label asp-for="Name" class="form-label required">Class name</label><input asp-for="Name" class="form-control" placeholder="e.g. BSc CS Year 1" required /><span asp-validation-for="Name"></span></div>
+<div class="col-md-6"><label asp-for="TeacherId" class="form-label required">Class Teacher</label><select asp-for="TeacherId" asp-items="ViewBag.Teachers" class="form-select" required><option value="">Select class Teacher</option></select><span asp-validation-for="TeacherId"></span></div>
+<div class="col-md-6"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" asp-items="ViewBag.Departments" class="form-select"><option value="">Select department</option></select></div>
+<div class="col-md-6"><label asp-for="SemesterId" class="form-label">Semester</label><select asp-for="SemesterId" asp-items="ViewBag.Semesters" class="form-select"><option value="">Select semester</option></select></div>
+</div><div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit">Create class</button></div></form></div>

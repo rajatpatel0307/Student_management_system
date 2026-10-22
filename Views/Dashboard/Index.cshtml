@@ -1,0 +1,4 @@
+@model Student_Management_System.Models.RoleDashboardViewModel
+@{ ViewData["Title"] = Model.Title; }
+<partial name="_AnalyticsDashboard" model="Model" />
+@section Scripts { <script src="~/lib/chart.js/chart.umd.js" asp-append-version="true"></script><script src="~/js/dashboard-charts.js" asp-append-version="true"></script> }

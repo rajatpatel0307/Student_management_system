@@ -1,0 +1,47 @@
+@model Student
+@{
+    ViewData["Title"] = $"Edit {Model.FullName}";
+}
+<div class="page-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">Students / #@Model.Id / Edit</span>
+        <h1>Edit @Model.FullName</h1>
+        <p>Update the linked profile and current academic placement. Identity login data is synchronized after saving.</p>
+    </div>
+    <div class="page-actions"><a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left"></i> Back to details</a></div>
+</div>
+
+<form asp-action="Edit" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" novalidate data-track-changes class="edit-shell">
+    <input asp-for="Id" type="hidden" />
+    <input asp-for="RowVersion" type="hidden" />
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+
+    <section class="edit-section">
+        <div class="edit-section-header"><span class="edit-section-icon"><i class="fa-regular fa-user"></i></span><div><h2>Personal information</h2><p>Profile and contact information used across the student account.</p></div></div>
+        <div class="row g-3">
+            <div class="col-md-6"><label asp-for="FullName" class="form-label required"></label><input asp-for="FullName" class="form-control" autocomplete="name" required /><span asp-validation-for="FullName"></span></div>
+            <div class="col-md-6"><label asp-for="DOB" class="form-label required">Date of birth</label><input asp-for="DOB" type="date" class="form-control" required /><span asp-validation-for="DOB"></span></div>
+            <div class="col-md-6"><label asp-for="Email" class="form-label required"></label><input asp-for="Email" type="email" class="form-control" autocomplete="email" required /><span asp-validation-for="Email"></span></div>
+            <div class="col-md-6"><label asp-for="Phone" class="form-label">Phone</label><input asp-for="Phone" class="form-control" type="tel" autocomplete="tel" /><span asp-validation-for="Phone"></span></div>
+            <div class="col-12"><label asp-for="Address" class="form-label">Address</label><textarea asp-for="Address" class="form-control" rows="3" maxlength="500" autocomplete="street-address"></textarea><span asp-validation-for="Address"></span></div>
+            <div class="col-12"><label class="form-label" for="PhotoFile">Profile photo</label><input id="PhotoFile" name="PhotoFile" type="file" class="form-control" accept="image/jpeg,image/png,image/webp" aria-describedby="photoHelp" /><div id="photoHelp" class="form-text">JPEG, PNG or WebP; maximum 5 MB and 4096 × 4096 pixels. Leave empty to keep the existing photo.</div></div>
+        </div>
+    </section>
+
+    <section class="edit-section">
+        <div class="edit-section-header"><span class="edit-section-icon"><i class="fa-solid fa-graduation-cap"></i></span><div><h2>Academic placement</h2><p>Selectors are relationship-aware and preserve the current values until a parent selection changes.</p></div></div>
+        <div class="row g-3">
+            <div class="col-md-6"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" asp-items="ViewBag.Departments" class="form-select"><option value="">Select department</option></select><span asp-validation-for="DepartmentId"></span></div>
+            <div class="col-md-6"><label asp-for="SemesterId" class="form-label">Semester</label><select asp-for="SemesterId" asp-items="ViewBag.Semesters" class="form-select" data-dependent-parent="#DepartmentId" data-dependent-url="/api/lookups/semesters?departmentId={value}" data-placeholder="Select semester"><option value="">Select semester</option></select><span asp-validation-for="SemesterId"></span></div>
+            <div class="col-md-6"><label asp-for="ClassId" class="form-label required">Class</label><select asp-for="ClassId" asp-items="ViewBag.Classes" class="form-select" required data-dependent-parent="#DepartmentId" data-dependent-url="/api/lookups/classes?departmentId={value}" data-placeholder="Select class"><option value="">Select class</option></select><span asp-validation-for="ClassId"></span></div>
+            <div class="col-md-6"><label asp-for="SectionId" class="form-label required">Section</label><select asp-for="SectionId" asp-items="ViewBag.Sections" class="form-select" required data-dependent-parent="#ClassId" data-dependent-url="/api/lookups/sections?classId={value}" data-placeholder="Select section"><option value="">Select section</option></select><span asp-validation-for="SectionId"></span></div>
+        </div>
+    </section>
+
+    <div class="sticky-form-actions">
+        <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
+        <div><button class="btn btn-outline-secondary" type="reset"><i class="fa-solid fa-rotate-left"></i> Reset</button><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk"></i> Save changes</button></div>
+    </div>
+</form>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

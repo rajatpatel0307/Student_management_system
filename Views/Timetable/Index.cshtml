@@ -1,0 +1,12 @@
+@model IEnumerable<TimetableEntry>
+@{
+    ViewData["Title"] = "Timetable";
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Schedule</span><h1>Timetable</h1><p>Your authorized weekly periods, ordered by day and start time.</p></div>@if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin")) { <div class="page-actions"><a asp-action="Create" class="btn btn-primary"><i class="fa-solid fa-plus me-1"></i> Add period</a></div> }</div>
+<partial name="_StatCards" model="@((IEnumerable<Student_Management_System.Models.StatCardViewModel>)ViewBag.Stats)" />
+<div class="card"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>Day</th><th>Time</th><th>Class</th><th>Subject</th><th>Teacher</th><th>Room</th><th class="text-end">Actions</th></tr></thead><tbody>
+@foreach (var item in Model)
+{
+    <tr><td><span class="badge bg-primary">@(((DayOfWeek)(item.DayOfWeek % 7)).ToString())</span></td><td><strong>@item.StartsAt.ToString(@"hh\:mm")–@item.EndsAt.ToString(@"hh\:mm")</strong></td><td>@if(User.IsInRole("Student")){<span>@item.Class?.Name</span>}else{<a asp-controller="Classes" asp-action="Details" asp-route-id="@item.ClassId" class="record-link">@item.Class?.Name</a>}</td><td><a asp-controller="Subject" asp-action="Details" asp-route-id="@item.SubjectId" class="record-link">@item.Subject?.Name</a></td><td>@item.Teacher?.FullName</td><td><span class="badge bg-info"><i class="fa-solid fa-location-dot"></i>@item.Room</span></td><td class="text-end"><div class="table-actions"><a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">View</a>@if(User.IsInRole("Admin")||User.IsInRole("SuperAdmin")){<a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">Edit</a>}</div></td></tr>
+}
+</tbody></table></div></div>

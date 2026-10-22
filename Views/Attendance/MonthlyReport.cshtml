@@ -1,0 +1,22 @@
+@model List<Attendance>
+@{
+    ViewData["Title"] = "Monthly attendance report";
+    var present = Model.Count(x => x.Status == "Present");
+    var absent = Model.Count(x => x.Status == "Absent");
+    var other = Model.Count - present - absent;
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">Attendance reporting</span><h1>Monthly report</h1><p>A complete record for the selected class and month.</p></div>
+    <div class="page-actions"><button class="btn btn-outline-secondary" type="button" data-print-page><i class="fa-solid fa-print me-1"></i> Print report</button></div>
+</div>
+<div class="metric-grid mb-3">
+    <div class="metric-card success"><div class="metric-top"><span class="metric-icon"><i class="fa-solid fa-check"></i></span></div><p class="metric-label">Present records</p><p class="metric-value">@present</p></div>
+    <div class="metric-card danger"><div class="metric-top"><span class="metric-icon"><i class="fa-solid fa-xmark"></i></span></div><p class="metric-label">Absent records</p><p class="metric-value">@absent</p></div>
+    <div class="metric-card warning"><div class="metric-top"><span class="metric-icon"><i class="fa-regular fa-clock"></i></span></div><p class="metric-label">Late / excused</p><p class="metric-value">@other</p></div>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>Date</th><th>Student</th><th>Subject</th><th>Status</th></tr></thead><tbody>
+@foreach (var item in Model)
+{
+    <tr><td>@item.Date.ToString("dd MMM yyyy")</td><td>@item.Student.FullName</td><td>@(item.Subject?.Name ?? "General")</td><td><span class="badge @(item.Status == "Present" ? "bg-success" : item.Status == "Absent" ? "bg-danger" : "bg-warning")">@item.Status</span></td></tr>
+}
+</tbody></table></div></div>

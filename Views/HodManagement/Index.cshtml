@@ -1,0 +1,120 @@
+@{
+    ViewData["Title"] = "Academic assignments";
+    var departments = ViewBag.Departments as IEnumerable<Department> ?? Enumerable.Empty<Department>();
+    var professors = ViewBag.Professors as IEnumerable<Teacher> ?? Enumerable.Empty<Teacher>();
+    var classes = ViewBag.Classes as IEnumerable<Class> ?? Enumerable.Empty<Class>();
+    var subjects = ViewBag.Subjects as IEnumerable<Subject> ?? Enumerable.Empty<Subject>();
+    var students = ViewBag.Students as IEnumerable<Student> ?? Enumerable.Empty<Student>();
+    var sections = ViewBag.Sections as IEnumerable<Section> ?? Enumerable.Empty<Section>();
+    var professorAssignments = ViewBag.ProfessorAssignments as IEnumerable<TeacherSubjectAssignment> ?? Enumerable.Empty<TeacherSubjectAssignment>();
+    var studentAssignments = ViewBag.StudentAssignments as IEnumerable<StudentSubjectEnrollment> ?? Enumerable.Empty<StudentSubjectEnrollment>();
+    var departmentId = (int)ViewBag.DepartmentId;
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">@ViewBag.Department?.Name</span><h1>Academic assignments</h1><p>Connect Professors and Students to the right classes, sections and subjects. Duplicate assignments are prevented automatically.</p></div>
+</div>
+
+@if (!User.IsInRole("HOD") && departments.Any())
+{
+    <form method="get" class="card section-card mb-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-8"><label class="form-label" for="departmentFilter">Department</label><select id="departmentFilter" name="departmentId" class="form-select">@foreach (var item in departments) { <option value="@item.Id" selected="@(item.Id == departmentId ? "selected" : null)">@item.Name (@item.Code)</option> }</select></div>
+            <div class="col-md-4"><button class="btn btn-primary w-100" type="submit"><i class="fa-solid fa-filter me-1"></i> Load department</button></div>
+        </div>
+    </form>
+}
+
+<div class="row g-3">
+    <div class="col-xl-6">
+        <section class="card section-card h-100">
+            <div class="section-title-row"><div><h2>Assign Professor</h2><p>Connect one Professor to a compatible class and subject.</p></div><span class="metric-icon"><i class="fa-solid fa-chalkboard-user"></i></span></div>
+            @if (!professors.Any() || !classes.Any() || !subjects.Any())
+            {
+                <div class="empty-state"><span class="empty-state-icon"><i class="fa-solid fa-link-slash"></i></span><h3>Assignment data incomplete</h3><p>Create a Professor, class and subject in this department first.</p></div>
+            }
+            else
+            {
+                <form asp-action="AssignProfessor" method="post">
+                    <input type="hidden" name="departmentId" value="@departmentId" />
+                    <div class="mb-3"><label class="form-label required" for="teacherId">Professor</label><select id="teacherId" name="teacherId" class="form-select" required><option value="">Search or select Professor</option>@foreach (var item in professors) { <option value="@item.Id">@item.FullName · @item.Qualification</option> }</select></div>
+                    <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label required" for="professorClassId">Class</label><select id="professorClassId" name="classId" class="form-select" required><option value="">Select class</option>@foreach (var item in classes) { <option value="@item.Id">@item.Name</option> }</select></div>
+                        <div class="col-md-6"><label class="form-label required" for="professorSubjectId">Subject</label><select id="professorSubjectId" name="subjectId" class="form-select" required><option value="">Select subject</option>@foreach (var item in subjects) { <option value="@item.Id" data-class="@item.ClassId">@item.Name · @item.Class?.Name</option> }</select></div>
+                    </div>
+                    <div class="form-actions"><button class="btn btn-primary" type="submit" data-confirm="Assign this Professor to the selected class and subject?"><i class="fa-solid fa-link me-1"></i> Save Professor assignment</button></div>
+                </form>
+            }
+        </section>
+    </div>
+    <div class="col-xl-6">
+        <section class="card section-card h-100">
+            <div class="section-title-row"><div><h2>Assign Student</h2><p>Update class and section, then enrol in a subject.</p></div><span class="metric-icon"><i class="fa-solid fa-user-graduate"></i></span></div>
+            @if (!students.Any() || !classes.Any() || !sections.Any() || !subjects.Any())
+            {
+                <div class="empty-state"><span class="empty-state-icon"><i class="fa-solid fa-link-slash"></i></span><h3>Assignment data incomplete</h3><p>Create a Student, class, section and subject in this department first.</p></div>
+            }
+            else
+            {
+                <form asp-action="AssignStudent" method="post">
+                    <input type="hidden" name="departmentId" value="@departmentId" />
+                    <div class="mb-3"><label class="form-label required" for="studentId">Student</label><select id="studentId" name="studentId" class="form-select" required><option value="">Search or select Student</option>@foreach (var item in students) { <option value="@item.Id">@item.FullName · @item.Email</option> }</select></div>
+                    <div class="row g-3">
+                        <div class="col-md-4"><label class="form-label required" for="studentClassId">Class</label><select id="studentClassId" name="classId" class="form-select" required><option value="">Class</option>@foreach (var item in classes) { <option value="@item.Id">@item.Name</option> }</select></div>
+                        <div class="col-md-4"><label class="form-label required" for="sectionId">Section</label><select id="sectionId" name="sectionId" class="form-select" required><option value="">Section</option>@foreach (var item in sections) { <option value="@item.Id" data-class="@item.ClassId">@item.Name · @item.Class?.Name</option> }</select></div>
+                        <div class="col-md-4"><label class="form-label required" for="studentSubjectId">Subject</label><select id="studentSubjectId" name="subjectId" class="form-select" required><option value="">Subject</option>@foreach (var item in subjects) { <option value="@item.Id" data-class="@item.ClassId">@item.Name</option> }</select></div>
+                    </div>
+                    <div class="form-actions"><button class="btn btn-primary" type="submit" data-confirm="Save this Student’s class, section and subject assignment?"><i class="fa-solid fa-link me-1"></i> Save Student assignment</button></div>
+                </form>
+            }
+        </section>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-xl-6">
+        <section class="card section-card">
+            <div class="section-title-row"><div><h2>Existing Professor assignments</h2><p>Current subject responsibility</p></div><span class="badge bg-primary">@professorAssignments.Count()</span></div>
+            @if (professorAssignments.Any())
+            {
+                <div class="activity-list">@foreach (var item in professorAssignments.Take(8)) { <div class="activity-item"><span class="avatar avatar-sm">@string.Concat(item.Teacher.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0]))</span><span class="activity-copy"><strong>@item.Teacher.FullName</strong><small>@item.Subject.Name · @item.Subject.Class?.Name</small></span><span class="badge bg-success">Assigned</span></div> }</div>
+            }
+            else
+            {
+                <div class="empty-state"><span class="empty-state-icon"><i class="fa-solid fa-chalkboard-user"></i></span><h3>No Professor assignments</h3><p>Use the form above to create the first assignment.</p></div>
+            }
+        </section>
+    </div>
+    <div class="col-xl-6">
+        <section class="card section-card">
+            <div class="section-title-row"><div><h2>Existing Student enrollments</h2><p>Latest subject enrollment records</p></div><span class="badge bg-primary">@studentAssignments.Count()</span></div>
+            @if (studentAssignments.Any())
+            {
+                <div class="activity-list">@foreach (var item in studentAssignments.Take(8)) { <div class="activity-item"><span class="avatar avatar-sm">@string.Concat(item.Student.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0]))</span><span class="activity-copy"><strong>@item.Student.FullName</strong><small>@item.Subject.Name · @item.Student.Class?.Name</small></span><span class="badge bg-success">Enrolled</span></div> }</div>
+            }
+            else
+            {
+                <div class="empty-state"><span class="empty-state-icon"><i class="fa-solid fa-user-graduate"></i></span><h3>No Student enrollments</h3><p>Use the form above to create the first enrollment.</p></div>
+            }
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+<script nonce="@(ViewContext.HttpContext.Items["CspNonce"])">
+(() => {
+    function filterByClass(classSelectId, targetIds) {
+        const classSelect = document.getElementById(classSelectId);
+        if (!classSelect) return;
+        classSelect.addEventListener('change', () => {
+            targetIds.forEach(id => {
+                const target = document.getElementById(id);
+                [...target.options].forEach(option => option.hidden = option.dataset.class && option.dataset.class !== classSelect.value);
+                target.value = '';
+            });
+        });
+    }
+    filterByClass('professorClassId', ['professorSubjectId']);
+    filterByClass('studentClassId', ['sectionId', 'studentSubjectId']);
+})();
+</script>
+}

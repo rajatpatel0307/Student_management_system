@@ -1,0 +1,66 @@
+@model Attendance
+@using Student_Management_System.Models
+@{
+    ViewData["Title"] = $"{Model.Student.FullName} attendance";
+    var corrections = ViewBag.Corrections as IEnumerable<AttendanceCorrection> ?? [];
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">Attendance / Record #@Model.Id</span><h1>Attendance details</h1><p>@Model.Student.FullName · @Model.Date.ToString("dd MMMM yyyy")</p></div>
+    <div class="page-actions">@if (User.IsInRole("HOD") || User.IsInRole("Professor")) { <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">Edit attendance</a> }<a asp-action="Index" class="btn btn-outline-secondary">Back</a></div>
+</div>
+<section class="card section-card mb-3">
+    <div class="detail-grid">
+        <div class="detail-item"><small>Student</small><strong><a asp-controller="Students" asp-action="Details" asp-route-id="@Model.StudentId" asp-route-tab="attendance">@Model.Student.FullName</a></strong></div>
+        <div class="detail-item"><small>Class</small><strong>@Model.Student.Class?.Name</strong></div>
+        <div class="detail-item"><small>Section</small><strong>@Model.Student.Section?.Name</strong></div>
+        <div class="detail-item"><small>Subject</small><strong>@(Model.Subject?.Name ?? "General")</strong></div>
+        <div class="detail-item"><small>Lecture</small><strong>@(Model.Lecture ?? "Not specified")</strong></div>
+        <div class="detail-item"><small>Status</small><strong><span class="badge @(Model.Status == "Present" ? "bg-success" : Model.Status == "Absent" ? "bg-danger" : "bg-warning")">@Model.Status</span></strong></div>
+        <div class="detail-item"><small>Entered by</small><strong>@(Model.Teacher?.FullName ?? "Not recorded")</strong></div>
+        <div class="detail-item"><small>Last updated</small><strong>@(Model.UpdatedUtc?.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt") ?? "Original submission")</strong></div>
+    </div>
+</section>
+@if (User.IsInRole("Professor") || User.IsInRole("HOD"))
+{
+    <section class="card section-card mb-3">
+        <div class="section-title-row"><div><h2>Request correction</h2><p>Submitted changes are retained in the correction history and require HOD approval.</p></div></div>
+        <form asp-action="RequestCorrection" method="post" class="row g-3">
+            <input type="hidden" name="id" value="@Model.Id" />
+            <div class="col-md-3"><label class="form-label" for="requestedStatus">Requested status</label><select id="requestedStatus" name="requestedStatus" class="form-select" required>@foreach (var status in new[] { "Present", "Absent", "Late", "Excused" }) { <option value="@status">@status</option> }</select></div>
+            <div class="col-md-7"><label class="form-label" for="correctionReason">Reason</label><input id="correctionReason" name="reason" maxlength="1000" class="form-control" required /></div>
+            <div class="col-md-2 d-flex align-items-end"><button class="btn btn-outline-primary w-100">Submit request</button></div>
+        </form>
+    </section>
+}
+@if (corrections.Any())
+{
+    <section class="card table-card">
+        <div class="section-title-row p-3"><div><h2>Correction history</h2><p>Permanent review trail for this attendance record.</p></div></div>
+        <div class="table-responsive"><table class="table"><thead><tr><th>Requested</th><th>Change</th><th>Reason</th><th>Status</th><th>Review</th></tr></thead><tbody>
+        @foreach (var item in corrections)
+        {
+            <tr>
+                <td>@item.RequestedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                <td>@item.PreviousStatus → @item.RequestedStatus</td>
+                <td>@item.Reason</td>
+                <td><span class="badge @(item.Status == ApprovalStatus.Approved ? "bg-success" : item.Status == ApprovalStatus.Rejected ? "bg-danger" : "bg-warning")">@item.Status</span></td>
+                <td>
+                    @if (User.IsInRole("HOD") && item.Status == ApprovalStatus.Pending)
+                    {
+                        <form asp-action="ReviewCorrection" method="post" class="d-flex gap-2">
+                            <input type="hidden" name="id" value="@item.Id" />
+                            <input name="comment" aria-label="Attendance review comment" class="form-control form-control-sm" maxlength="1000" placeholder="Review comment" />
+                            <button name="approve" value="true" class="btn btn-sm btn-success">Approve</button>
+                            <button name="approve" value="false" class="btn btn-sm btn-danger">Reject</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <span>@(item.ReviewComment ?? "—")</span>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody></table></div>
+    </section>
+}

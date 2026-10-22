@@ -1,0 +1,13 @@
+@{
+    ViewData["Title"] = "Record changed";
+}
+<section class="state-page" role="alert">
+    <div class="state-icon warning"><i class="fa-solid fa-code-compare" aria-hidden="true"></i></div>
+    <span class="eyebrow">409 · Update conflict</span>
+    <h1>This record changed while you were editing it</h1>
+    <p>Your update was not applied, so a newer change was not overwritten. Reload the record, review the latest values, and try again.</p>
+    <div class="page-actions justify-content-center">
+        <a href="" class="btn btn-primary">Reload latest version</a>
+        <a asp-controller="Home" asp-action="Workspace" class="btn btn-outline-secondary">Return to workspace</a>
+    </div>
+</section>

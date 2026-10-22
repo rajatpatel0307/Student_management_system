@@ -1,0 +1,17 @@
+@{ ViewData["Title"] = "Campus access needs setup"; }
+<div class="page-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">Account setup</span>
+        <h1>Campus access needs setup</h1>
+        <p>You are signed in. Your dashboard will be available once campus access is assigned.</p>
+    </div>
+</div>
+<section class="card section-card">
+    <h2>Ask your Super Administrator to complete setup</h2>
+    <p>In Academic structure, create an active institution and campus if needed, then assign your account to the appropriate campus under Campus access.</p>
+    <p>Your dashboard will then show only the records you are authorized to access.</p>
+    <div class="page-actions">
+        <a asp-controller="Home" asp-action="Dashboard" class="btn btn-primary">Check access again</a>
+        <a asp-controller="Profile" asp-action="Index" class="btn btn-outline-secondary">My profile</a>
+    </div>
+</section>

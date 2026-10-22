@@ -1,0 +1,24 @@
+@model string[]
+@{ ViewData["Title"] = "MFA recovery codes"; }
+
+<div class="mfa-page">
+    <section class="card section-card mfa-card" aria-labelledby="recoveryCodesTitle">
+        <div class="page-header">
+            <div class="page-header-copy">
+                <span class="eyebrow">Account security</span>
+                <h1 id="recoveryCodesTitle">Save your recovery codes</h1>
+                <p>Each code works once. Store them offline; they will not be shown again.</p>
+            </div>
+        </div>
+        <div class="alert alert-warning">Do not store these codes in EduFlow notes or upload them as a document.</div>
+        <div class="row g-2 justify-content-center">
+            @foreach (var code in Model)
+            {
+                <div class="col-6 col-md-4"><code class="d-block border rounded p-2 text-center user-select-all">@code</code></div>
+            }
+        </div>
+        <div class="mfa-actions mt-3">
+            <a asp-controller="Home" asp-action="Dashboard" class="btn btn-primary">I saved the codes — continue to dashboard</a>
+        </div>
+    </section>
+</div>

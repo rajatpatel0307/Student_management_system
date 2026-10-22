@@ -1,0 +1,20 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "Something went wrong";
+}
+<div class="container py-5">
+    <div class="error-state card">
+        <span class="error-state-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
+        <span class="eyebrow">500 · Server error</span>
+        <h1>Something went wrong</h1>
+        <p>We couldn’t complete this request. Try again, or return to your dashboard. No changes were made by this page.</p>
+        @if (Model.ShowRequestId)
+        {
+            <small class="text-muted mb-3">Reference: <code>@Model.RequestId</code></small>
+        }
+        <div class="page-actions">
+            <button class="btn btn-outline-secondary" type="button" data-reload-page><i class="fa-solid fa-rotate-right me-1"></i> Try again</button>
+            <a asp-controller="Home" asp-action="Index" class="btn btn-primary"><i class="fa-solid fa-house me-1"></i> Return home</a>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,16 @@
+@{ ViewData["Title"] = "Use recovery code"; }
+
+<div class="mfa-page">
+    <section class="auth-card card section-card mfa-card" aria-labelledby="recoveryCodeTitle">
+        <span class="eyebrow">Account recovery</span>
+        <h1 id="recoveryCodeTitle">Use a recovery code</h1>
+        <p>Recovery codes are single-use and are invalidated after successful sign-in.</p>
+        <form asp-action="RecoveryCode" method="post" class="mfa-form">
+            <div asp-validation-summary="All" class="alert alert-danger"></div>
+            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+            <label class="form-label required" for="code">Recovery code</label>
+            <input id="code" name="code" class="form-control mb-3" autocomplete="one-time-code" required />
+            <button class="btn btn-primary w-100" type="submit">Sign in</button>
+        </form>
+    </section>
+</div>

@@ -1,0 +1,35 @@
+@model Student_Management_System.Models.AdmissionApplicationInput
+@using Student_Management_System.Models
+@{
+    var years = ViewBag.AcademicYears as IEnumerable<AcademicYear> ?? [];
+    var departments = ViewBag.Departments as IEnumerable<Department> ?? [];
+    var classes = ViewBag.Classes as IEnumerable<Class> ?? [];
+}
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+<section class="card section-card">
+    <div class="section-title-row"><div><h2>Applicant information</h2><p>Identity and contact details used throughout admission review.</p></div></div>
+    <div class="row g-3">
+        <div class="col-lg-6"><label asp-for="ApplicantName" class="form-label">Full name <span class="text-danger">*</span></label><input asp-for="ApplicantName" class="form-control" autocomplete="name" /><span asp-validation-for="ApplicantName" class="text-danger"></span></div>
+        <div class="col-lg-6"><label asp-for="Email" class="form-label">Email <span class="text-danger">*</span></label><input asp-for="Email" class="form-control" autocomplete="email" /><span asp-validation-for="Email" class="text-danger"></span></div>
+        <div class="col-md-6"><label asp-for="Phone" class="form-label"></label><input asp-for="Phone" class="form-control" autocomplete="tel" /></div>
+        <div class="col-md-6"><label asp-for="DateOfBirth" class="form-label">Date of birth</label><input asp-for="DateOfBirth" type="date" class="form-control" /><span asp-validation-for="DateOfBirth" class="text-danger"></span></div>
+        <div class="col-12"><label asp-for="Address" class="form-label"></label><textarea asp-for="Address" class="form-control" rows="3"></textarea></div>
+    </div>
+</section>
+<section class="card section-card">
+    <div class="section-title-row"><div><h2>Academic application</h2><p>Assign the requested program and academic period.</p></div></div>
+    <div class="row g-3">
+        <div class="col-lg-6"><label asp-for="ProgramName" class="form-label">Program or course <span class="text-danger">*</span></label><input asp-for="ProgramName" class="form-control" placeholder="e.g. BSc Computer Science" /><span asp-validation-for="ProgramName" class="text-danger"></span></div>
+        <div class="col-lg-6"><label asp-for="Source" class="form-label"></label><input asp-for="Source" class="form-control" placeholder="Direct, website, referral…" /></div>
+        <div class="col-md-4"><label asp-for="AcademicYearId" class="form-label">Academic year</label><select asp-for="AcademicYearId" class="form-select"><option value="">Select year</option>@foreach(var item in years){<option value="@item.Id">@item.Name</option>}</select><span asp-validation-for="AcademicYearId" class="text-danger"></span></div>
+        <div class="col-md-4"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" class="form-select" data-admission-department><option value="">Select department</option>@foreach(var item in departments){<option value="@item.Id">@item.Name</option>}</select><span asp-validation-for="DepartmentId" class="text-danger"></span></div>
+        <div class="col-md-4"><label asp-for="ClassId" class="form-label">Class (optional until enrollment)</label><select asp-for="ClassId" class="form-select" data-admission-class><option value="">Not assigned</option>@foreach(var item in classes){<option value="@item.Id" data-department="@item.DepartmentId">@item.Name</option>}</select><span asp-validation-for="ClassId" class="text-danger"></span></div>
+    </div>
+</section>
+<section class="card section-card">
+    <div class="section-title-row"><div><h2>Review notes</h2><p>Internal notes stay private; applicant notes may be shared externally.</p></div></div>
+    <div class="row g-3">
+        <div class="col-lg-6"><label asp-for="InternalNotes" class="form-label">Internal notes</label><textarea asp-for="InternalNotes" class="form-control" rows="5"></textarea></div>
+        <div class="col-lg-6"><label asp-for="ApplicantNotes" class="form-label">Applicant-visible notes</label><textarea asp-for="ApplicantNotes" class="form-control" rows="5"></textarea></div>
+    </div>
+</section>

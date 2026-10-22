@@ -1,0 +1,37 @@
+@model Student_Management_System.Models.PagedResult<Student_Management_System.Models.PromotionBatch>
+@{
+    ViewData["Title"] = "Student promotion";
+    var query = ViewContext.HttpContext.Request.Query;
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">Academic lifecycle</span><h1>Promotion batches</h1><p>Review eligibility, preserve enrollment history, and apply approved lifecycle decisions.</p></div>
+    <div class="page-actions"><a asp-action="Create" class="btn btn-primary"><i class="fa-solid fa-arrow-up-right-dots"></i> New promotion batch</a></div>
+</div>
+<div class="metric-grid mb-3">
+    <article class="metric-card"><span class="metric-label">Filtered batches</span><strong class="metric-value">@Model.TotalCount</strong><span class="metric-note">All matching promotion workflows</span></article>
+    <article class="metric-card warning"><span class="metric-label">Awaiting approval</span><strong class="metric-value">@Model.Items.Count(x => x.Status == PromotionBatchStatus.Submitted)</strong><span class="metric-note">On this page</span></article>
+    <article class="metric-card success"><span class="metric-label">Applied</span><strong class="metric-value">@Model.Items.Count(x => x.Status == PromotionBatchStatus.Applied)</strong><span class="metric-note">On this page</span></article>
+</div>
+<form method="get" class="card filter-panel">
+    <div class="filter-panel-grid">
+        <div><label class="form-label" for="promotionSearch">Search</label><input id="promotionSearch" name="search" value="@Model.Search" class="form-control" placeholder="Batch number or class" /></div>
+        <div><label class="form-label" for="promotionStatus">Status</label><select id="promotionStatus" name="status" class="form-select"><option value="">All statuses</option>@foreach(var status in Enum.GetValues<PromotionBatchStatus>()){<option value="@status" selected="@(query["status"] == status.ToString())">@status</option>}</select></div>
+        <div class="filter-actions"><button class="btn btn-primary">Apply filters</button><a asp-action="Index" class="btn btn-outline-secondary">Reset</a></div>
+    </div>
+</form>
+<section class="card table-card">
+    @if(Model.Items.Count == 0)
+    {
+        <div class="empty-state"><span class="empty-state-icon"><i class="fa-solid fa-arrow-up-right-dots"></i></span><h2>No promotion batches</h2><p>Create a draft to review eligible students without changing enrollment records.</p><a asp-action="Create" class="btn btn-primary">Create batch</a></div>
+    }
+    else
+    {
+        <div class="table-responsive"><table class="table"><thead><tr><th>Batch</th><th>Source</th><th>Destination</th><th>Students</th><th>Status</th><th>Created</th></tr></thead><tbody>
+        @foreach(var item in Model.Items)
+        {
+            <tr><td><a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.BatchNumber</a></td><td>@item.SourceAcademicYear.Name · @item.SourceClass.Name / @item.SourceSection.Name</td><td>@item.DestinationAcademicYear.Name</td><td>@item.Entries.Count</td><td><span class="badge bg-info">@item.Status</span></td><td>@item.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+        }
+        </tbody></table></div>
+        <partial name="_Pagination" model="Model" />
+    }
+</section>

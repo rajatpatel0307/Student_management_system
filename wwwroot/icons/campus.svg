@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="540" height="260" viewBox="0 0 540 260" fill="none">
+  <ellipse cx="270" cy="229" rx="232" ry="17" fill="#121b3b"/>
+  <circle cx="270" cy="119" r="105" fill="#818cf8" fill-opacity=".06"/>
+  <circle cx="270" cy="119" r="85" stroke="#a5b4fc" stroke-opacity=".12"/>
+  <path d="M46 227H494" stroke="#a5b4fc" stroke-opacity=".35"/>
+  <path d="M111 136H219V225H111zM321 136H429V225H321z" fill="#4c5686"/>
+  <path d="M102 130H224V142H102zM316 130H438V142H316z" fill="#7b86b5"/>
+  <path d="M213 102H327V225H213z" fill="#c7d2fe"/>
+  <path d="M199 105L270 58L341 105H199Z" fill="#e0e7ff"/>
+  <path d="M209 107H331M220 219H320" stroke="#8b97ca" stroke-width="4"/>
+  <path d="M231 124H244V191H231zM263 124H276V191H263zM295 124H308V191H295z" fill="#818fc4"/>
+  <path d="M227 120H248M259 120H280M291 120H312M227 194H248M259 194H280M291 194H312" stroke="#eef2ff" stroke-width="5"/>
+  <path d="M247 225V210a23 23 0 0 1 46 0v15" fill="#394574"/>
+  <path d="M208 227H332M217 221H323M226 215H314" stroke="#e0e7ff" stroke-width="4"/>
+  <circle cx="270" cy="88" r="10" fill="#818fc4"/>
+  <path d="M270 81v7l5 3" stroke="#eef2ff" stroke-width="2" stroke-linecap="round"/>
+  <path d="M130 156H145V176H130zM160 156H175V176H160zM190 156H205V176H190zM130 190H145V210H130zM160 190H175V210H160zM190 190H205V210H190zM335 156H350V176H335zM365 156H380V176H365zM395 156H410V176H395zM335 190H350V210H335zM365 190H380V210H365zM395 190H410V210H395z" fill="#a5b4fc" fill-opacity=".6"/>
+  <path d="M270 59V28" stroke="#c7d2fe" stroke-width="2"/>
+  <path d="M272 28H295L289 36L295 44H272V28Z" fill="#a5b4fc"/>
+  <path d="M78 225V183M460 225V177" stroke="#92b9b5" stroke-width="3"/>
+  <path d="M78 158C48 179 50 204 78 205C106 204 108 179 78 158ZM460 149C429 174 432 201 460 202C488 201 491 174 460 149Z" fill="#548b88"/>
+  <path d="M78 179v26M460 170v32" stroke="#92b9b5" stroke-width="2"/>
+  <path d="M126 65h22M137 54v22M407 84h12M413 78v12" stroke="#a5b4fc" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="382" cy="43" r="3" fill="#a5b4fc" fill-opacity=".5"/>
+  <circle cx="100" cy="102" r="2" fill="#a5b4fc" fill-opacity=".5"/>
+</svg>

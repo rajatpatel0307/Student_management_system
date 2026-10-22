@@ -1,0 +1,19 @@
+@model TimetableEntry
+@{
+    ViewData["Title"] = "Add timetable period";
+    var classes = ViewBag.Classes as IEnumerable<Class> ?? Enumerable.Empty<Class>();
+    var subjects = ViewBag.Subjects as IEnumerable<Subject> ?? Enumerable.Empty<Subject>();
+    var teachers = ViewBag.Teachers as IEnumerable<Teacher> ?? Enumerable.Empty<Teacher>();
+    var rooms = ViewBag.Rooms as IEnumerable<Room> ?? Enumerable.Empty<Room>();
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Schedule</span><h1>Add timetable period</h1><p>Schedule a subject, Teacher and room for one class.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form method="post" novalidate><div asp-validation-summary="All"></div><div class="row g-3">
+<div class="col-md-6"><label asp-for="ClassId" class="form-label required">Class</label><select asp-for="ClassId" class="form-select" required><option value="">Select class</option>@foreach (var item in classes) { <option value="@item.Id">@item.Name</option> }</select></div>
+<div class="col-md-6"><label asp-for="SubjectId" class="form-label required">Subject</label><select asp-for="SubjectId" class="form-select" required><option value="">Select subject</option>@foreach (var item in subjects) { <option value="@item.Id" data-class="@item.ClassId">@item.Name</option> }</select></div>
+<div class="col-md-6"><label asp-for="TeacherId" class="form-label required">Teacher</label><select asp-for="TeacherId" class="form-select" required><option value="">Select Teacher</option>@foreach (var item in teachers) { <option value="@item.Id">@item.FullName · @item.TeacherType</option> }</select></div>
+<div class="col-md-6"><label asp-for="DayOfWeek" class="form-label required">Day</label><select asp-for="DayOfWeek" class="form-select" required><option value="">Select day</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="7">Sunday</option></select></div>
+<div class="col-md-4"><label asp-for="StartsAt" class="form-label required">Start time</label><input asp-for="StartsAt" class="form-control" type="time" required /></div>
+<div class="col-md-4"><label asp-for="EndsAt" class="form-label required">End time</label><input asp-for="EndsAt" class="form-control" type="time" required /></div>
+<div class="col-md-4"><label asp-for="RoomId" class="form-label">Room</label><select asp-for="RoomId" class="form-select"><option value="">No room</option>@foreach(var room in rooms){<option value="@room.Id">@room.Name · @room.Code</option>}</select></div>
+</div><div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit">Save period</button></div></form></div>
+@section Scripts { <script nonce="@(ViewContext.HttpContext.Items["CspNonce"])">document.getElementById('ClassId')?.addEventListener('change', function(){const subject=document.getElementById('SubjectId');[...subject.options].forEach(o=>o.hidden=o.dataset.class&&o.dataset.class!==this.value);subject.value='';});</script> }

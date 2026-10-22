@@ -1,0 +1,105 @@
+@model PagedResult<ProfessorListItemViewModel>
+@using Student_Management_System.Security
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@using Microsoft.AspNetCore.Authorization
+@{
+    ViewData["Title"] = "Department professors";
+}
+<div class="page-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">Department / Professors</span>
+        <h1>Professors</h1>
+        <p>Faculty in your active campus membership and department only.</p>
+    </div>
+</div>
+
+<form method="get" class="card section-card mb-3" role="search">
+    <div class="row g-3 align-items-end">
+        <div class="col-lg-6">
+            <label class="form-label" for="professorSearch">Search professors</label>
+            <input id="professorSearch" name="search" value="@Model.Search"
+                   class="form-control" maxlength="160"
+                   placeholder="Name, email, or designation" />
+        </div>
+        <div class="col-sm-4 col-lg-2">
+            <label class="form-label" for="professorStatus">Status</label>
+            <select id="professorStatus" name="status" class="form-select">
+                <option value="">All statuses</option>
+                <option value="active" selected="@(Context.Request.Query["status"] == "active")">Active</option>
+                <option value="inactive" selected="@(Context.Request.Query["status"] == "inactive")">Inactive</option>
+            </select>
+        </div>
+        <div class="col-sm-4 col-lg-2">
+            <label class="form-label" for="professorSort">Order</label>
+            <select id="professorSort" name="sort" class="form-select">
+                <option value="name">Name</option>
+                <option value="email" selected="@(Model.Sort == "email")">Email</option>
+                <option value="status" selected="@(Model.Sort == "status")">Status</option>
+            </select>
+        </div>
+        <div class="col-sm-4 col-lg-2">
+            <button class="btn btn-primary w-100" type="submit">
+                <i class="fa-solid fa-magnifying-glass me-1"></i> Apply
+            </button>
+        </div>
+    </div>
+</form>
+
+<section class="card table-card">
+    <div class="section-title-row p-3">
+        <div><h2>Professor directory</h2><p>Students and non-professor roles are excluded by the server query.</p></div>
+        <span class="badge bg-primary">@Model.TotalCount</span>
+    </div>
+    @if (Model.Items.Count == 0)
+    {
+        <div class="empty-state">
+            <span class="empty-state-icon"><i class="fa-solid fa-chalkboard-user"></i></span>
+            <h3>No professors found</h3>
+            <p>Try another search, or ask an administrator to verify campus membership and department assignment.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>Professor</th><th>Professor ID</th><th>Department</th><th>Assignments</th><th>Status</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+                <tbody>
+                @foreach (var professor in Model.Items)
+                {
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                @if (professor.HasProfileImage)
+                                {
+                                    <img class="avatar avatar-sm" alt="" loading="lazy"
+                                         src="@Url.Action("ProfessorImage", "HodManagement", new { id = professor.TeacherId })" />
+                                }
+                                else
+                                {
+                                    <span class="avatar avatar-sm">@string.Concat(professor.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0]))</span>
+                                }
+                                <span><strong class="d-block">@professor.FullName</strong><small>@professor.Email · @(professor.Phone ?? "Phone restricted")</small></span>
+                            </div>
+                        </td>
+                        <td>@professor.ProfessorNumber</td>
+                        <td><strong>@professor.DepartmentName</strong><small class="d-block">@professor.Designation</small></td>
+                        <td><small class="d-block">Subjects: @(professor.AssignedSubjects.Count == 0 ? "None" : string.Join(", ", professor.AssignedSubjects.Take(3)))</small><small>Classes: @(professor.AssignedClasses.Count == 0 ? "None" : string.Join(", ", professor.AssignedClasses.Take(3)))</small></td>
+                        <td><span class="badge @(professor.IsActive ? "bg-success" : "bg-secondary")">@(professor.IsActive ? "Active" : "Inactive")</span></td>
+                        <td>
+                            @{
+                                var canManage = (await AuthorizationService.AuthorizeAsync(User, null, ProfilePolicies.ProfessorManageDepartment)).Succeeded;
+                                var canEdit = (await AuthorizationService.AuthorizeAsync(User, null, ProfilePolicies.ProfessorEdit)).Succeeded;
+                            }
+                            @if (canManage && canEdit)
+                            {
+                                <a asp-action="EditProfessor" asp-route-id="@professor.TeacherId" class="btn btn-sm btn-outline-primary">View / edit</a>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_ServerPagination" model="Model" />
+    }
+</section>

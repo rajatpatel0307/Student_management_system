@@ -1,0 +1,23 @@
+@model Teacher
+@{
+    ViewData["Title"] = "Add Teacher";
+    var departments = ViewBag.Departments as IEnumerable<Department> ?? Enumerable.Empty<Department>();
+    var subjects = ViewBag.Subjects as IEnumerable<Subject> ?? Enumerable.Empty<Subject>();
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">People</span><h1>Add HOD or Professor</h1><p>Create a secure login, choose the Teacher type and assign academic responsibility.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form asp-action="Create" method="post" novalidate><div asp-validation-summary="All"></div>
+<div class="form-section"><div class="form-section-title"><h2>Professional information</h2><p>Use official employment details.</p></div><div class="row g-3">
+<div class="col-md-6"><label asp-for="FullName" class="form-label required"></label><input asp-for="FullName" class="form-control" placeholder="Full name" required /><span asp-validation-for="FullName"></span></div>
+<div class="col-md-6"><label asp-for="Qualification" class="form-label required"></label><input asp-for="Qualification" class="form-control" placeholder="e.g. PhD Computer Science" required /><span asp-validation-for="Qualification"></span></div>
+<div class="col-md-6"><label asp-for="Email" class="form-label required"></label><input asp-for="Email" type="email" class="form-control" placeholder="faculty@school.edu" required /><span asp-validation-for="Email"></span></div>
+<div class="col-md-6"><label asp-for="Phone" class="form-label required"></label><input asp-for="Phone" type="tel" class="form-control" placeholder="+91 98765 43210" required /><span asp-validation-for="Phone"></span></div>
+</div></div>
+<div class="form-section"><div class="form-section-title"><h2>Role and department</h2><p>The selected Teacher type controls dashboard access and responsibilities.</p></div><div class="row g-3">
+<div class="col-md-6"><label asp-for="TeacherType" class="form-label required">Teacher type</label><select asp-for="TeacherType" asp-items="Html.GetEnumSelectList<TeacherType>()" class="form-select" required></select><span asp-validation-for="TeacherType"></span></div>
+<div class="col-md-6"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" class="form-select"><option value="">Assign later</option>@foreach (var item in departments) { <option value="@item.Id">@item.Name</option> }</select><span asp-validation-for="DepartmentId"></span></div>
+</div></div>
+<div class="form-section"><div class="form-section-title"><h2>Login security</h2><p>A one-time activation link will be emailed after the account is created. Administrators never know the user's password.</p></div></div>
+<div class="form-section"><div class="section-title-row"><div class="form-section-title mb-0"><h2>Initial subject assignments</h2><p>Optional. Assignments can also be managed from Academic assignments.</p></div><button class="btn btn-sm btn-outline-primary" type="button" id="toggleSubjects">Select all</button></div>
+@if (subjects.Any()) { <div class="selection-grid">@foreach (var subject in subjects) { <label class="selection-card"><input class="form-check-input subject-checkbox" type="checkbox" name="SubjectIds" value="@subject.Id" /><strong>@subject.Name</strong><small class="d-block text-muted">@subject.Class?.Name</small></label> }</div> } else { <div class="empty-state"><span class="empty-state-icon"><i class="fa-solid fa-book"></i></span><h3>No subjects available</h3><p>Create subjects before assigning them to a Teacher.</p></div> }</div>
+<div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit" data-confirm="Create this Teacher login and role assignment?"><i class="fa-solid fa-user-plus me-1"></i> Create Teacher</button></div></form></div>
+@section Scripts { <script nonce="@(ViewContext.HttpContext.Items["CspNonce"])">document.getElementById('toggleSubjects')?.addEventListener('click',()=>{const boxes=[...document.querySelectorAll('.subject-checkbox')],checked=boxes.every(x=>x.checked);boxes.forEach(x=>x.checked=!checked);});</script> }

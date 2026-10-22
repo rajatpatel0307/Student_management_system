@@ -1,0 +1,67 @@
+@model Student_Management_System.Models.PagedResult<Mark>
+@using Student_Management_System.Models
+@{
+    ViewData["Title"] = "Marks records";
+    var query = ViewContext.HttpContext.Request.Query;
+}
+<partial name="_ManagementHeader" model="@(new ManagementHeaderViewModel {
+    Eyebrow = "Academic records",
+    Title = "Marks and results",
+    Description = "Review evaluated students, configured grading thresholds, and publication states.",
+    PrimaryAction = User.IsInRole("HOD") || User.IsInRole("Professor") ? "Create" : null,
+    PrimaryLabel = "Enter marks",
+    PrimaryController = "Mark"
+})" />
+<partial name="_StatCards" model="@((IEnumerable<StatCardViewModel>)ViewBag.Stats)" />
+<form method="get" class="card filter-panel">
+    <div class="filter-panel-grid">
+        <div><label class="form-label" for="field-mark-index-search-788">Search</label><input id="field-mark-index-search-788" name="search" value="@Model.Search" class="form-control" placeholder="Student, subject or exam" /></div>
+        <div><label class="form-label" for="field-mark-index-classid-953">Class</label><select id="field-mark-index-classid-953" name="classId" class="form-select"><option value="">All</option>@foreach (var c in (IEnumerable<Class>)ViewBag.Classes) { <option value="@c.Id" selected="@(query["classId"] == c.Id.ToString())">@c.Name</option> }</select></div>
+        <div><label class="form-label" for="field-mark-index-subjectid-1241">Subject</label><select id="field-mark-index-subjectid-1241" name="subjectId" class="form-select"><option value="">All</option>@foreach (var s in (IEnumerable<Subject>)ViewBag.Subjects) { <option value="@s.Id" selected="@(query["subjectId"] == s.Id.ToString())">@s.Name</option> }</select></div>
+        <div><label class="form-label" for="field-mark-index-examid-1538">Exam</label><select id="field-mark-index-examid-1538" name="examId" class="form-select"><option value="">All</option>@foreach (var e in (IEnumerable<Exam>)ViewBag.Exams) { <option value="@e.Id" selected="@(query["examId"] == e.Id.ToString())">@e.Name</option> }</select></div>
+        <div><label class="form-label" for="field-mark-index-status-1820">Result</label><select id="field-mark-index-status-1820" name="status" class="form-select"><option value="">All</option><option value="passed" selected="@(query["status"] == "passed")">Passed</option><option value="failed" selected="@(query["status"] == "failed")">Failed</option><option value="published" selected="@(query["status"] == "published")">Published</option><option value="draft" selected="@(query["status"] == "draft")">Draft</option></select></div>
+        <div class="filter-actions"><button class="btn btn-primary">Apply</button><a asp-action="Index" class="btn btn-outline-secondary">Reset</a></div>
+    </div>
+</form>
+<section class="card table-card">
+    @if (Model.Items.Count == 0)
+    {
+        <partial name="_EmptyRecords" model="@(("" + "No marks records", "No records match the selected filters.", "", ""))" />
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table" data-enhanced="true">
+                <thead><tr><th>Student</th><th>Exam</th><th>Subject</th><th>Score</th><th>Grade</th><th>Result</th><th>Professor</th><th>Publication</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                @foreach (var mark in Model.Items)
+                {
+                    var published = mark.IsApproved && mark.Exam.Status == ExamLifecycle.Published;
+                    <tr>
+                        <td><a asp-controller="Students" asp-action="Details" asp-route-id="@mark.StudentId" asp-route-tab="marks" class="record-link">@mark.Student.FullName</a><small class="d-block text-muted">@mark.Student.Class?.Name · @mark.Student.Section?.Name</small></td>
+                        <td><a asp-controller="Exam" asp-action="Details" asp-route-id="@mark.ExamId" class="record-link">@mark.Exam.Name</a></td>
+                        <td><a asp-controller="Subject" asp-action="Details" asp-route-id="@mark.SubjectId" class="record-link">@mark.Subject.Name</a></td>
+                        <td><strong>@mark.Score.ToString("0.##")/@mark.Exam.MaximumMarks.ToString("0.##")</strong></td>
+                        <td>@mark.Grade</td>
+                        <td><span class="badge @(mark.Score >= mark.Exam.PassMarks ? "bg-success" : "bg-danger")">@(mark.Score >= mark.Exam.PassMarks ? "Passed" : "Failed")</span></td>
+                        <td>@(mark.EnteredByTeacher?.FullName ?? "—")</td>
+                        <td><span class="badge @(published ? "bg-success" : mark.IsApproved ? "bg-info" : "bg-warning")">@(published ? "Published" : mark.IsApproved ? "Approved" : "Draft")</span></td>
+                        <td class="text-end">
+                            <div class="table-actions">
+                                <a asp-action="Details" asp-route-id="@mark.Id" class="btn btn-sm btn-outline-primary">View</a>
+                                @if ((User.IsInRole("HOD") || User.IsInRole("Professor")) &&
+                                     mark.Exam.Status == ExamLifecycle.OpenForEntry &&
+                                     !mark.IsApproved)
+                                {
+                                    <a asp-action="Edit" asp-route-id="@mark.Id" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_ServerPagination" model="Model" />
+    }
+</section>

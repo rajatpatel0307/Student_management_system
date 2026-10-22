@@ -1,0 +1,10 @@
+@model Department
+@{
+    ViewData["Title"] = "Add department";
+    var hods = ViewBag.Hods as IEnumerable<Teacher> ?? Enumerable.Empty<Teacher>();
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Organization</span><h1>Add department</h1><p>Create an academic unit and optionally assign an existing HOD.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form method="post" novalidate><div asp-validation-summary="All"></div><div class="form-section"><div class="form-section-title"><h2>Department identity</h2><p>The code must be short and unique across the institution.</p></div>
+<div class="row g-3"><div class="col-md-8"><label asp-for="Name" class="form-label required"></label><input asp-for="Name" class="form-control" placeholder="Computer Science" required /><span asp-validation-for="Name"></span></div><div class="col-md-4"><label asp-for="Code" class="form-label required"></label><input asp-for="Code" class="form-control text-uppercase" placeholder="CSE" required /><span asp-validation-for="Code"></span></div></div>
+<div class="mt-3"><label asp-for="HodTeacherId" class="form-label">Head of Department</label><select asp-for="HodTeacherId" class="form-select"><option value="">Assign later</option>@foreach (var hod in hods) { <option value="@hod.Id">@hod.FullName · @hod.Email</option> }</select><span asp-validation-for="HodTeacherId"></span><div class="form-text">Only Teacher profiles with type HOD are available.</div></div></div>
+<div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="fa-solid fa-building-circle-check me-1"></i> Create department</button></div></form></div>

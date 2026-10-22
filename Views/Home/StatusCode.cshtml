@@ -1,0 +1,39 @@
+@{
+    var code = (int)(ViewBag.StatusCode ?? 500);
+    var title = code switch
+    {
+        400 => "We couldn’t understand that request",
+        401 => "Your session has expired",
+        403 => "You don’t have permission",
+        404 => "We couldn’t find that page",
+        _ => "Something went wrong"
+    };
+    var message = code switch
+    {
+        400 => "Check the information you submitted and try again.",
+        401 => "Sign in again to continue securely.",
+        403 => "This page is restricted to another role or permission level.",
+        404 => "The link may be outdated, or the page may have moved.",
+        _ => "The request could not be completed. Try again in a moment."
+    };
+    ViewData["Title"] = title;
+}
+<div class="container py-5">
+    <div class="error-state card">
+        <span class="error-state-icon"><i class="fa-solid @(code == 404 ? "fa-map-location-dot" : code == 401 ? "fa-hourglass-end" : "fa-circle-exclamation")"></i></span>
+        <span class="eyebrow">@code · Request error</span>
+        <h1>@title</h1>
+        <p>@message</p>
+        <div class="page-actions">
+            <button class="btn btn-outline-secondary" type="button" data-history-back>Go back</button>
+            @if (code == 401)
+            {
+                <a asp-controller="Account" asp-action="Login" class="btn btn-primary">Sign in</a>
+            }
+            else
+            {
+                <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Return home</a>
+            }
+        </div>
+    </div>
+</div>

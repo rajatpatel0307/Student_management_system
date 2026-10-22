@@ -1,0 +1,36 @@
+@model Student_Management_System.Models.MfaSetupViewModel
+@{ ViewData["Title"] = "Multi-factor authentication"; }
+
+<div class="mfa-page">
+    <section class="card section-card mfa-card" aria-labelledby="mfaTitle">
+        <div class="page-header">
+            <div class="page-header-copy">
+                <span class="eyebrow">Account security</span>
+                <h1 id="mfaTitle">Authenticator MFA</h1>
+                <p>Protect privileged access with a time-based authenticator code and one-use recovery codes.</p>
+            </div>
+        </div>
+
+        @if (Model.IsEnabled)
+        {
+            <div class="alert alert-success">Authenticator MFA is enabled.</div>
+            <a asp-controller="Home" asp-action="Dashboard" class="btn btn-primary">Continue to dashboard</a>
+        }
+        else
+        {
+            <ol>
+                <li>Add a new account in your authenticator app.</li>
+                <li>Enter this setup key: <code class="user-select-all">@Model.SharedKey</code></li>
+                <li>If supported, import: <code class="d-block text-break user-select-all">@Model.AuthenticatorUri</code></li>
+            </ol>
+            <form asp-action="EnableMfa" method="post" class="mfa-form">
+                <div asp-validation-summary="All" class="alert alert-danger"></div>
+                <label class="form-label required" for="code">Authenticator code</label>
+                <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" class="form-control mb-3" required />
+                <div class="mfa-actions">
+                    <button class="btn btn-primary" type="submit">Enable authenticator MFA</button>
+                </div>
+            </form>
+        }
+    </section>
+</div>

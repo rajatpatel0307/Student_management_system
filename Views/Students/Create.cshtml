@@ -1,0 +1,24 @@
+@model Student
+@{
+    ViewData["Title"] = "Add student";
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">People</span><h1>Add student</h1><p>Create a secure login and assign the Student to an academic structure.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form asp-action="Create" method="post" enctype="multipart/form-data" novalidate><div asp-validation-summary="All"></div>
+<div class="form-section"><div class="form-section-title"><h2>Personal information</h2><p>Use the Student’s official institutional details.</p></div><div class="row g-3">
+<div class="col-md-6"><label asp-for="FullName" class="form-label required"></label><input asp-for="FullName" class="form-control" placeholder="Full legal name" required /><span asp-validation-for="FullName"></span></div>
+<div class="col-md-6"><label asp-for="DOB" class="form-label required">Date of birth</label><input asp-for="DOB" type="date" class="form-control" required /><span asp-validation-for="DOB"></span></div>
+<div class="col-md-6"><label asp-for="Email" class="form-label required"></label><input asp-for="Email" type="email" class="form-control" placeholder="student@school.edu" autocomplete="off" required /><span asp-validation-for="Email"></span></div>
+<div class="col-md-6"><label asp-for="Phone" class="form-label">Phone</label><input asp-for="Phone" type="tel" class="form-control" placeholder="+91 98765 43210" /><span asp-validation-for="Phone"></span></div>
+<div class="col-12"><label asp-for="Address" class="form-label">Address</label><textarea asp-for="Address" class="form-control" rows="3" placeholder="Residential address"></textarea><span asp-validation-for="Address"></span></div>
+</div></div>
+<div class="form-section"><div class="form-section-title"><h2>Academic assignment</h2><p>Choose a compatible department, semester, class and section.</p></div><div class="row g-3">
+<div class="col-md-6"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" asp-items="ViewBag.Departments" class="form-select"><option value="">Select department</option></select></div>
+<div class="col-md-6"><label asp-for="SemesterId" class="form-label">Semester</label><select asp-for="SemesterId" asp-items="ViewBag.Semesters" class="form-select"><option value="">Select semester</option></select></div>
+<div class="col-md-6"><label asp-for="ClassId" class="form-label required">Class</label><select asp-for="ClassId" asp-items="ViewBag.Classes" class="form-select" required><option value="">Select class</option></select><span asp-validation-for="ClassId"></span></div>
+<div class="col-md-6"><label asp-for="SectionId" class="form-label required">Section</label><select asp-for="SectionId" asp-items="ViewBag.Sections" class="form-select" required><option value="">Select section</option></select><span asp-validation-for="SectionId"></span></div>
+</div></div>
+<div class="form-section"><div class="form-section-title"><h2>Account and photo</h2><p>Share the initial password securely and ask the Student to change it after first login.</p></div><div class="row g-3">
+<div class="col-md-6"><div class="alert alert-info mb-0">A one-time activation link will be emailed after the account is created. Administrators never know the student's password.</div></div>
+<div class="col-md-6"><label class="form-label" for="PhotoFile">Profile photo</label><input id="PhotoFile" name="PhotoFile" type="file" class="form-control" accept="image/jpeg,image/png,image/webp" /><div class="form-text">JPEG, PNG or WebP, maximum 5 MB and 4096 × 4096 pixels. Images are re-encoded securely.</div></div>
+</div></div>
+<div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit" data-confirm="Create this Student account with the selected academic assignment?"><i class="fa-solid fa-user-plus me-1"></i> Create student</button></div></form></div>

@@ -1,0 +1,5 @@
+@model int
+<span class="notification-dot @(Model == 0 ? "is-empty" : "")">
+    @if(Model > 0){<span aria-hidden="true">@(Model > 99 ? "99+" : Model)</span>}
+    <span class="visually-hidden">@Model unread notifications</span>
+</span>

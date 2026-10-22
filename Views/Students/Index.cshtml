@@ -1,0 +1,74 @@
+@model Student_Management_System.Models.PagedResult<Student>
+@using Student_Management_System.Models
+@using Student_Management_System.Security
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@using Microsoft.AspNetCore.Authorization
+@{
+    ViewData["Title"] = "Students";
+    var httpRequest = ViewContext.HttpContext.Request;
+    var request = httpRequest.Query;
+    string SortUrl(string column)
+    {
+        var values = request.ToDictionary(x => x.Key, x => (string?)x.Value.ToString());
+        values["sort"] = column;
+        values["direction"] = Model.Sort == column && Model.Direction == "asc" ? "desc" : "asc";
+        values["page"] = "1";
+        return httpRequest.Path.ToString() + Microsoft.AspNetCore.Http.QueryString.Create(values).ToString();
+    }
+}
+<partial name="_ManagementHeader" model="@(new ManagementHeaderViewModel {
+    Eyebrow = "People", Title = "Students",
+    Description = "Manage student profiles, enrollment, attendance, marks and academic progress using live institutional data.",
+    PrimaryAction = "Create", PrimaryLabel = "Add student", PrimaryController = "Students",
+    ExportAction = "Export", ExportController = "Students"
+})" />
+<partial name="_StatCards" model="@((IEnumerable<StatCardViewModel>)ViewBag.Stats)" />
+
+<form method="get" class="card filter-panel" role="search" aria-label="Student filters">
+    <div class="filter-panel-grid">
+        <div><label class="form-label" for="student-search">Search students</label><div class="input-icon"><i class="fa-solid fa-magnifying-glass"></i><input id="student-search" name="search" value="@Model.Search" class="form-control" placeholder="Name, email or phone" autocomplete="off" /></div></div>
+        <div><label class="form-label" for="department-filter">Department</label><select id="department-filter" name="departmentId" class="form-select"><option value="">All departments</option>@foreach (var item in (IEnumerable<Department>)ViewBag.Departments) { <option value="@item.Id" selected="@(request["departmentId"] == item.Id.ToString())">@item.Name</option> }</select></div>
+        <div><label class="form-label" for="class-filter">Class</label><select id="class-filter" name="classId" class="form-select"><option value="">All classes</option>@foreach (var item in (IEnumerable<Class>)ViewBag.Classes) { <option value="@item.Id" selected="@(request["classId"] == item.Id.ToString())">@item.Name</option> }</select></div>
+        <div><label class="form-label" for="section-filter">Section</label><select id="section-filter" name="sectionId" class="form-select"><option value="">All sections</option>@foreach (var item in (IEnumerable<Section>)ViewBag.Sections) { <option value="@item.Id" selected="@(request["sectionId"] == item.Id.ToString())">@item.Name</option> }</select></div>
+        <div><label class="form-label" for="status-filter">Account status</label><select id="status-filter" name="status" class="form-select"><option value="">All statuses</option><option value="active" selected="@(request["status"] == "active")">Active</option><option value="inactive" selected="@(request["status"] == "inactive")">Inactive</option><option value="low-attendance" selected="@(request["status"] == "low-attendance")">Low attendance</option></select></div>
+        <div class="filter-actions"><button class="btn btn-primary" type="submit">Apply</button><a asp-action="Index" class="btn btn-outline-secondary">Reset</a></div>
+    </div>
+    <input type="hidden" name="sort" value="@Model.Sort" /><input type="hidden" name="direction" value="@Model.Direction" />
+    <div class="active-filters" aria-live="polite">
+        @if (!string.IsNullOrWhiteSpace(Model.Search)) { <span class="filter-chip"><i class="fa-solid fa-magnifying-glass"></i> “@Model.Search”</span> }
+        @if (!string.IsNullOrWhiteSpace(request["status"])) { <span class="filter-chip"><i class="fa-solid fa-filter"></i> @request["status"]</span> }
+    </div>
+</form>
+
+<section class="card table-card">
+    <div class="table-toolbar"><div class="table-toolbar-start"><strong>@Model.TotalCount student records</strong></div><div class="table-toolbar-end"><form method="get"><input type="hidden" name="search" value="@Model.Search" /><label class="visually-hidden" for="student-page-size">Rows per page</label><select id="student-page-size" name="pageSize" class="form-select" data-submit-on-change>@foreach (var size in new[] { 10, 20, 50, 100 }) { <option value="@size" selected="@(Model.PageSize == size)">@size per page</option> }</select></form></div></div>
+    @if (Model.Items.Count == 0)
+    {
+        <partial name="_EmptyRecords" model="@(("No students found", "Try changing the filters or add the first student record.", User.IsInRole("Admin") || User.IsInRole("SuperAdmin") || User.IsInRole("HOD") ? "Create" : null, "Add student"))" />
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover" data-enhanced="true">
+                <thead><tr><th><input type="checkbox" aria-label="Select all students" data-select-all /></th><th><a class="sortable" href="@SortUrl("name")">Student <i class="fa-solid fa-sort"></i></a></th><th><a class="sortable" href="@SortUrl("department")">Department <i class="fa-solid fa-sort"></i></a></th><th><a class="sortable" href="@SortUrl("class")">Placement <i class="fa-solid fa-sort"></i></a></th><th>Account</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    var initials = string.Concat(item.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+                    var active = item.User != null && (!item.User.LockoutEnd.HasValue || item.User.LockoutEnd <= DateTimeOffset.UtcNow);
+                    var authorizationResult = await AuthorizationService.AuthorizeAsync(User, item, ProfilePolicies.StudentEdit);
+                    <tr>
+                        <td><input type="checkbox" aria-label="Select @item.FullName" value="@item.Id" data-row-select /></td>
+                        <td><div class="attendance-person">@if (!string.IsNullOrWhiteSpace(item.PhotoPath)) { <a asp-action="Details" asp-route-id="@item.Id" class="avatar avatar-sm"><img src="@Url.Action("Photo", "Students", new { id = item.Id })" alt="@item.FullName" /></a> } else { <a asp-action="Details" asp-route-id="@item.Id" class="avatar avatar-sm">@initials</a> }<span class="activity-copy"><a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.FullName</a><small>@item.Email · ID #@item.Id</small></span></div></td>
+                        <td>@(item.Department?.Name ?? "Unassigned")<small class="d-block text-muted">@(item.Semester?.Name ?? "No semester")</small></td>
+                        <td><a asp-controller="Classes" asp-action="Details" asp-route-id="@item.ClassId" class="record-link">@(item.Class?.Name ?? "Unassigned")</a><small class="d-block text-muted">Section @(item.Section?.Name ?? "—")</small></td>
+                        <td><span class="badge @(active ? "bg-success" : "bg-warning")"><span class="status-dot"></span>@(active ? "Active" : "Inactive")</span></td>
+                        <td><div class="table-actions"><a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" title="View details"><i class="fa-regular fa-eye"></i><span class="visually-hidden">View @item.FullName</span></a>@if (User.IsInRole("HOD") && authorizationResult.Succeeded) { <a asp-controller="HodManagement" asp-action="EditStudent" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="Edit eligible student"><i class="fa-regular fa-pen-to-square"></i></a> } else if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin")) { <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="fa-regular fa-pen-to-square"></i></a><a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger" title="Delete"><i class="fa-regular fa-trash-can"></i></a> }</div></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_ServerPagination" model="Model" />
+    }
+</section>

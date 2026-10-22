@@ -1,0 +1,12 @@
+@model Student_Management_System.Models.CommunicationMessage
+@{
+    ViewData["Title"] = Model.Title;
+    var canManage = ViewBag.CanManage == true;
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Communication / #@Model.Id</span><h1>@Model.Title</h1><p>@Model.Priority priority · @Model.Status</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Back</a>@if(canManage && Model.Status is not (CommunicationStatus.Completed or CommunicationStatus.Cancelled)){<form asp-action="Cancel" method="post"><input type="hidden" name="id" value="@Model.Id" /><button class="btn btn-danger" data-confirm="Cancel all pending deliveries?">Cancel delivery</button></form>}</div></div>
+<section class="card section-card mb-3"><div class="communication-body">@Model.Body</div></section>
+@if(canManage)
+{
+    <div class="metric-grid mb-3"><article class="metric-card"><span class="metric-label">Recipients and channels</span><strong class="metric-value">@Model.Deliveries.Count</strong></article><article class="metric-card success"><span class="metric-label">Delivered</span><strong class="metric-value">@Model.Deliveries.Count(d => d.Status == DeliveryStatus.Delivered)</strong></article><article class="metric-card warning"><span class="metric-label">Pending</span><strong class="metric-value">@Model.Deliveries.Count(d => d.Status is DeliveryStatus.Pending or DeliveryStatus.Processing)</strong></article><article class="metric-card danger"><span class="metric-label">Failed</span><strong class="metric-value">@Model.Deliveries.Count(d => d.Status == DeliveryStatus.Failed)</strong></article></div>
+    <section class="card table-card"><div class="table-responsive"><table class="table"><thead><tr><th>Recipient</th><th>Channel</th><th>Status</th><th>Attempts</th><th>Delivered</th><th>Read</th></tr></thead><tbody>@foreach(var delivery in Model.Deliveries.OrderBy(d => d.User.Email)){<tr><td>@delivery.User.Email</td><td>@delivery.Channel</td><td><span class="badge bg-info">@delivery.Status</span></td><td>@delivery.AttemptCount</td><td>@(delivery.DeliveredUtc?.ToLocalTime().ToString("dd MMM HH:mm") ?? "—")</td><td>@(delivery.ReadUtc?.ToLocalTime().ToString("dd MMM HH:mm") ?? "—")</td></tr>}</tbody></table></div></section>
+}

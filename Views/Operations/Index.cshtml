@@ -1,0 +1,259 @@
+@using Student_Management_System.Models
+@{
+    ViewData["Title"] = "Campus operations";
+    var programs = ViewBag.Programs as IEnumerable<AcademicProgram> ?? [];
+    var intakes = ViewBag.Intakes as IEnumerable<AcademicIntake> ?? [];
+    var routes = ViewBag.TransportRoutes as IEnumerable<TransportRoute> ?? [];
+    var rooms = ViewBag.HostelRooms as IEnumerable<HostelRoom> ?? [];
+    var drives = ViewBag.PlacementDrives as IEnumerable<PlacementDrive> ?? [];
+    var applications = ViewBag.PlacementApplications as IEnumerable<PlacementApplication> ?? [];
+    var employees = ViewBag.Employees as IEnumerable<EmployeeProfile> ?? [];
+    var departments = ViewBag.Departments as IEnumerable<Department> ?? [];
+    var years = ViewBag.AcademicYears as IEnumerable<AcademicYear> ?? [];
+    var students = ViewBag.Students as IEnumerable<Student> ?? [];
+    var transportEnrollments = ViewBag.TransportEnrollments as IEnumerable<TransportEnrollment> ?? [];
+    var hostelAllocations = ViewBag.HostelAllocations as IEnumerable<HostelAllocation> ?? [];
+    var tickets = ViewBag.ServiceTickets as IEnumerable<CampusServiceTicket> ?? [];
+    var vehicles = ViewBag.TransportVehicles as IEnumerable<TransportVehicle> ?? [];
+    var buildings = ViewBag.HostelBuildings as IEnumerable<HostelBuilding> ?? [];
+    var interviews = ViewBag.PlacementInterviews as IEnumerable<PlacementInterview> ?? [];
+    var contracts = ViewBag.EmployeeContracts as IEnumerable<EmployeeContract> ?? [];
+    var privileged = User.IsInRole("SuperAdmin") || User.IsInRole("Admin");
+    var transportManager = privileged || User.IsInRole("TransportManager");
+    var hostelManager = privileged || User.IsInRole("HostelManager");
+    var placementManager = privileged || User.IsInRole("PlacementOfficer");
+}
+
+<div class="page-header">
+    <div class="page-header-copy">
+        <span class="eyebrow">Campus management</span>
+        <h1>Operations</h1>
+        <p>Academic programs, transport, hostel, placement, and employee workflows backed by live records.</p>
+    </div>
+</div>
+
+<section class="card section-card mb-3">
+    <div class="section-title-row"><div><h2>Campus service desk</h2><p>Report transport, hostel, maintenance, HR, or campus issues and retain resolution history.</p></div></div>
+    <form asp-action="CreateServiceTicket" method="post" class="row g-3 align-items-end">
+        <div class="col-md-2"><label class="form-label" for="ticketModule">Module</label><select id="ticketModule" name="module" class="form-select"><option>General</option><option>Transport</option><option>Hostel</option><option>Maintenance</option><option>HR</option></select></div>
+        <div class="col-md-3"><label class="form-label" for="ticketTitle">Title</label><input id="ticketTitle" name="title" class="form-control" maxlength="160" required /></div>
+        <div class="col-md-4"><label class="form-label" for="ticketDescription">Description</label><input id="ticketDescription" name="description" class="form-control" maxlength="2000" required /></div>
+        <div class="col-md-2"><label class="form-label" for="ticketPriority">Priority</label><select id="ticketPriority" name="priority" class="form-select"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
+        <div class="col-md-1"><button class="btn btn-primary w-100">Send</button></div>
+    </form>
+    @if(tickets.Any()){<div class="table-responsive mt-3"><table class="table"><thead><tr><th>Module</th><th>Issue</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead><tbody>@foreach(var ticket in tickets){<tr><td>@ticket.Module</td><td>@ticket.Title<small class="d-block text-muted">@ticket.Description</small></td><td>@ticket.Priority</td><td><span class="badge bg-info">@ticket.Status</span></td><td>@ticket.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td></tr>}</tbody></table></div>}
+</section>
+
+@if (privileged || transportManager || hostelManager || placementManager)
+{
+    <section class="card section-card mb-3">
+        <div class="section-title-row">
+            <div>
+                <h2>Quick actions</h2>
+                <p>Create and assign operational records without leaving this workspace.</p>
+            </div>
+        </div>
+        <div class="accordion" id="operationForms">
+            @if (privileged)
+            {
+                <div class="accordion-item">
+                    <h3 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#programForm">Academic program and intake</button>
+                    </h3>
+                    <div id="programForm" class="accordion-collapse collapse" data-bs-parent="#operationForms">
+                        <div class="accordion-body">
+                            <div class="row g-4">
+                                <form asp-action="CreateProgram" method="post" class="col-lg-6">
+                                    <h4 class="h6">New program</h4>
+                                    <div class="row g-3">
+                                        <div class="col-sm-4"><label class="form-label" for="programCode">Code</label><input id="programCode" name="Code" class="form-control" maxlength="30" required /></div>
+                                        <div class="col-sm-8"><label class="form-label" for="programName">Name</label><input id="programName" name="Name" class="form-control" maxlength="160" required /></div>
+                                        <div class="col-sm-8"><label class="form-label" for="programDepartment">Department</label><select id="programDepartment" name="DepartmentId" class="form-select" required><option value="">Select department</option>@foreach (var department in departments) { <option value="@department.Id">@department.Name</option> }</select></div>
+                                        <div class="col-sm-4"><label class="form-label" for="durationSemesters">Semesters</label><input id="durationSemesters" name="DurationSemesters" type="number" min="1" max="12" class="form-control" required /></div>
+                                        <div class="col-12"><button class="btn btn-primary" type="submit">Create program</button></div>
+                                    </div>
+                                </form>
+                                <form asp-action="CreateIntake" method="post" class="col-lg-6">
+                                    <h4 class="h6">New intake</h4>
+                                    <div class="row g-3">
+                                        <div class="col-sm-6"><label class="form-label" for="intakeProgram">Program</label><select id="intakeProgram" name="AcademicProgramId" class="form-select" required><option value="">Select program</option>@foreach (var program in programs.Where(p => p.IsActive)) { <option value="@program.Id">@program.Code · @program.Name</option> }</select></div>
+                                        <div class="col-sm-6"><label class="form-label" for="intakeYear">Academic year</label><select id="intakeYear" name="AcademicYearId" class="form-select" required><option value="">Select year</option>@foreach (var year in years) { <option value="@year.Id">@year.Name</option> }</select></div>
+                                        <div class="col-sm-4"><label class="form-label" for="seatCapacity">Seats</label><input id="seatCapacity" name="SeatCapacity" type="number" min="1" max="100000" class="form-control" required /></div>
+                                        <div class="col-sm-4"><label class="form-label" for="intakeOpens">Opens</label><input id="intakeOpens" name="OpensUtc" type="datetime-local" class="form-control" required /></div>
+                                        <div class="col-sm-4"><label class="form-label" for="intakeCloses">Closes</label><input id="intakeCloses" name="ClosesUtc" type="datetime-local" class="form-control" required /></div>
+                                        <div class="col-12"><button class="btn btn-primary" type="submit">Create intake</button></div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (transportManager)
+            {
+                <div class="accordion-item">
+                    <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#transportForm">Transport</button></h3>
+                    <div id="transportForm" class="accordion-collapse collapse" data-bs-parent="#operationForms">
+                        <div class="accordion-body row g-4">
+                            <form asp-action="CreateTransportRoute" method="post" class="col-lg-6 row g-3">
+                                <h4 class="h6">New route</h4>
+                                <div class="col-sm-4"><label class="form-label" for="routeCode">Code</label><input id="routeCode" name="Code" class="form-control" required /></div>
+                                <div class="col-sm-8"><label class="form-label" for="routeName">Name</label><input id="routeName" name="Name" class="form-control" required /></div>
+                                <div class="col-12"><label class="form-label" for="routeStops">Stops</label><textarea id="routeStops" name="Stops" class="form-control" rows="2" maxlength="1000" required></textarea></div>
+                                <div class="col-12"><button class="btn btn-primary">Create route</button></div>
+                            </form>
+                            <form asp-action="EnrollTransport" method="post" class="col-lg-6 row g-3">
+                                <h4 class="h6">Enroll student</h4>
+                                <div class="col-sm-6"><label class="form-label" for="transportStudent">Student</label><select id="transportStudent" name="studentId" class="form-select" required><option value="">Select student</option>@foreach (var student in students) { <option value="@student.Id">@student.FullName</option> }</select></div>
+                                <div class="col-sm-6"><label class="form-label" for="transportRoute">Route</label><select id="transportRoute" name="routeId" class="form-select" required><option value="">Select route</option>@foreach (var route in routes.Where(r => r.IsActive)) { <option value="@route.Id">@route.Code · @route.Name</option> }</select></div>
+                                <div class="col-sm-8"><label class="form-label" for="boardingStop">Boarding stop</label><input id="boardingStop" name="boardingStop" class="form-control" required /></div>
+                                <div class="col-sm-4"><label class="form-label" for="transportStart">Starts</label><input id="transportStart" name="startsOn" type="date" class="form-control" required /></div>
+                                <div class="col-12"><button class="btn btn-primary">Enroll student</button></div>
+                            </form>
+                            <form asp-action="CreateVehicle" method="post" class="col-lg-6 row g-3">
+                                <h4 class="h6">Register vehicle</h4>
+                                <div class="col-sm-4"><label class="form-label" for="field-operations-index-registrationnumber-11316">Registration</label><input id="field-operations-index-registrationnumber-11316" name="registrationNumber" class="form-control" required /></div>
+                                <div class="col-sm-5"><label class="form-label" for="field-operations-index-model-11488">Model</label><input id="field-operations-index-model-11488" name="model" class="form-control" required /></div>
+                                <div class="col-sm-3"><label class="form-label" for="field-operations-index-capacity-11640">Capacity</label><input id="field-operations-index-capacity-11640" name="capacity" type="number" min="1" class="form-control" required /></div>
+                                <div class="col-12"><button class="btn btn-outline-primary">Register vehicle</button></div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (hostelManager)
+            {
+                <div class="accordion-item">
+                    <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#hostelForm">Hostel</button></h3>
+                    <div id="hostelForm" class="accordion-collapse collapse" data-bs-parent="#operationForms">
+                        <div class="accordion-body row g-4">
+                            <form asp-action="CreateHostelRoom" method="post" class="col-lg-6 row g-3">
+                                <h4 class="h6">New room</h4>
+                                <div class="col-sm-5"><label class="form-label" for="hostelName">Hostel</label><input id="hostelName" name="HostelName" class="form-control" required /></div>
+                                <div class="col-sm-4"><label class="form-label" for="roomNumber">Room</label><input id="roomNumber" name="RoomNumber" class="form-control" required /></div>
+                                <div class="col-sm-3"><label class="form-label" for="roomCapacity">Capacity</label><input id="roomCapacity" name="Capacity" type="number" min="1" max="20" class="form-control" required /></div>
+                                <div class="col-12"><button class="btn btn-primary">Create room</button></div>
+                            </form>
+                            <form asp-action="AllocateHostel" method="post" class="col-lg-6 row g-3">
+                                <h4 class="h6">Allocate room</h4>
+                                <div class="col-sm-5"><label class="form-label" for="hostelStudent">Student</label><select id="hostelStudent" name="studentId" class="form-select" required><option value="">Select student</option>@foreach (var student in students) { <option value="@student.Id">@student.FullName</option> }</select></div>
+                                <div class="col-sm-4"><label class="form-label" for="hostelRoom">Room</label><select id="hostelRoom" name="roomId" class="form-select" required><option value="">Select room</option>@foreach (var room in rooms.Where(r => r.IsActive)) { <option value="@room.Id">@room.HostelName · @room.RoomNumber</option> }</select></div>
+                                <div class="col-sm-3"><label class="form-label" for="hostelStart">Starts</label><input id="hostelStart" name="startsOn" type="date" class="form-control" required /></div>
+                                <div class="col-12"><button class="btn btn-primary">Allocate room</button></div>
+                            </form>
+                            <form asp-action="CreateHostelBuilding" method="post" class="col-lg-6 row g-3">
+                                <h4 class="h6">New hostel building</h4>
+                                <div class="col-sm-5"><label class="form-label" for="field-operations-index-name-14829">Name</label><input id="field-operations-index-name-14829" name="name" class="form-control" required /></div>
+                                <div class="col-sm-7"><label class="form-label" for="field-operations-index-address-14979">Address</label><input id="field-operations-index-address-14979" name="address" class="form-control" /></div>
+                                <div class="col-12"><button class="btn btn-outline-primary">Create building</button></div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (placementManager)
+            {
+                <div class="accordion-item">
+                    <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#placementForm">Placement drive</button></h3>
+                    <div id="placementForm" class="accordion-collapse collapse" data-bs-parent="#operationForms">
+                        <form asp-action="CreatePlacementDrive" method="post" class="accordion-body row g-3">
+                            <div class="col-md-4"><label class="form-label" for="placementEmployer">Employer</label><input id="placementEmployer" name="Employer" class="form-control" required /></div>
+                            <div class="col-md-4"><label class="form-label" for="placementRole">Role</label><input id="placementRole" name="RoleTitle" class="form-control" required /></div>
+                            <div class="col-md-4"><label class="form-label" for="placementDeadline">Deadline</label><input id="placementDeadline" name="ApplicationDeadlineUtc" type="datetime-local" class="form-control" required /></div>
+                            <div class="col-12"><label class="form-label" for="placementEligibility">Eligibility</label><textarea id="placementEligibility" name="Eligibility" class="form-control" rows="2"></textarea></div>
+                            <div class="col-12"><button class="btn btn-primary">Create drive</button></div>
+                        </form>
+                    </div>
+                </div>
+            }
+            @if (privileged)
+            {
+                <div class="accordion-item">
+                    <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#employeeForm">Employee account</button></h3>
+                    <div id="employeeForm" class="accordion-collapse collapse" data-bs-parent="#operationForms">
+                        <form asp-action="CreateEmployee" method="post" class="accordion-body row g-3">
+                            <div class="col-md-4"><label class="form-label" for="employeeName">Full name</label><input id="employeeName" name="fullName" class="form-control" required /></div>
+                            <div class="col-md-4"><label class="form-label" for="employeeEmail">Email</label><input id="employeeEmail" name="email" type="email" class="form-control" required /></div>
+                            <div class="col-md-4"><label class="form-label" for="employeeNumber">Employee number</label><input id="employeeNumber" name="employeeNumber" class="form-control" required /></div>
+                            <div class="col-md-4"><label class="form-label" for="jobTitle">Job title</label><input id="jobTitle" name="jobTitle" class="form-control" required /></div>
+                            <div class="col-md-4"><label class="form-label" for="employeeDepartment">Department</label><select id="employeeDepartment" name="departmentId" class="form-select"><option value="">Institution-wide</option>@foreach (var department in departments) { <option value="@department.Id">@department.Name</option> }</select></div>
+                            <div class="col-md-4"><label class="form-label" for="joinedOn">Joined on</label><input id="joinedOn" name="joinedOn" type="date" class="form-control" required /></div>
+                            <div class="col-12"><button class="btn btn-primary">Create employee and send activation</button></div>
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@if (programs.Any())
+{
+    <section class="card table-card mb-3">
+        <div class="section-title-row p-3"><h2>Academic programs</h2></div>
+        <div class="table-responsive"><table class="table"><thead><tr><th>Code</th><th>Program</th><th>Department</th><th>Duration</th></tr></thead><tbody>@foreach (var item in programs) { <tr><td>@item.Code</td><td>@item.Name</td><td>@item.Department.Name</td><td>@item.DurationSemesters semesters</td></tr> }</tbody></table></div>
+    </section>
+}
+@if (intakes.Any())
+{
+    <section class="card table-card mb-3">
+        <div class="section-title-row p-3"><h2>Academic intakes</h2></div>
+        <div class="table-responsive"><table class="table"><thead><tr><th>Program</th><th>Year</th><th>Seats</th><th>Window</th></tr></thead><tbody>@foreach (var item in intakes) { <tr><td>@item.AcademicProgram.Name</td><td>@item.AcademicYear.Name</td><td>@item.SeatCapacity</td><td>@item.OpensUtc.ToLocalTime().ToString("dd MMM yyyy") – @item.ClosesUtc.ToLocalTime().ToString("dd MMM yyyy")</td></tr> }</tbody></table></div>
+    </section>
+}
+
+<div class="row g-3 mb-3">
+    @if (routes.Any())
+    {
+        <div class="col-xl-6"><section class="card table-card h-100"><div class="section-title-row p-3"><h2>Transport routes</h2></div><div class="table-responsive"><table class="table"><thead><tr><th>Code</th><th>Route</th><th>Stops</th><th>Status</th></tr></thead><tbody>@foreach (var item in routes) { <tr><td>@item.Code</td><td>@item.Name</td><td>@item.Stops</td><td><span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">@(item.IsActive ? "Active" : "Inactive")</span></td></tr> }</tbody></table></div></section></div>
+    }
+    @if (rooms.Any())
+    {
+        <div class="col-xl-6"><section class="card table-card h-100"><div class="section-title-row p-3"><h2>Hostel rooms</h2></div><div class="table-responsive"><table class="table"><thead><tr><th>Hostel</th><th>Room</th><th>Capacity</th><th>Status</th></tr></thead><tbody>@foreach (var item in rooms) { <tr><td>@item.HostelName</td><td>@item.RoomNumber</td><td>@item.Capacity</td><td><span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">@(item.IsActive ? "Active" : "Inactive")</span></td></tr> }</tbody></table></div></section></div>
+    }
+</div>
+
+@if(vehicles.Any() || buildings.Any() || interviews.Any() || contracts.Any())
+{
+<div class="row g-3 mb-3">
+    @if(vehicles.Any()){<div class="col-xl-6"><section class="card table-card h-100"><div class="section-title-row p-3"><h2>Transport vehicles</h2></div><div class="table-responsive"><table class="table"><thead><tr><th>Registration</th><th>Model</th><th>Capacity</th><th>Status</th></tr></thead><tbody>@foreach(var vehicle in vehicles){<tr><td>@vehicle.RegistrationNumber</td><td>@vehicle.Model</td><td>@vehicle.Capacity</td><td><span class="badge @(vehicle.IsActive?"bg-success":"bg-secondary")">@(vehicle.IsActive?"Active":"Inactive")</span></td></tr>}</tbody></table></div></section></div>}
+    @if(buildings.Any()){<div class="col-xl-6"><section class="card table-card h-100"><div class="section-title-row p-3"><h2>Hostel buildings</h2></div><div class="table-responsive"><table class="table"><thead><tr><th>Name</th><th>Address</th><th>Status</th></tr></thead><tbody>@foreach(var building in buildings){<tr><td>@building.Name</td><td>@(building.Address??"—")</td><td><span class="badge @(building.IsActive?"bg-success":"bg-secondary")">@(building.IsActive?"Active":"Inactive")</span></td></tr>}</tbody></table></div></section></div>}
+</div>
+}
+
+@if (transportManager && transportEnrollments.Any())
+{
+    <section class="card table-card mb-3"><div class="section-title-row p-3"><h2>Active transport enrollments</h2></div><div class="table-responsive"><table class="table"><thead><tr><th>Student</th><th>Route</th><th>Boarding stop</th><th>Started</th><th class="text-end">Action</th></tr></thead><tbody>@foreach(var item in transportEnrollments){<tr><td>@item.Student.FullName</td><td>@item.TransportRoute.Code · @item.TransportRoute.Name</td><td>@item.BoardingStop</td><td>@item.StartsOn.ToString("dd MMM yyyy")</td><td class="text-end"><form asp-action="EndTransport" method="post" class="d-flex gap-2 justify-content-end"><input type="hidden" name="id" value="@item.Id"/><input type="date" name="endsOn" aria-label="End date" value="@DateTime.Today.ToString("yyyy-MM-dd")" class="form-control form-control-sm w-auto" required/><button class="btn btn-sm btn-outline-danger" data-confirm="Close this transport enrollment?">End</button></form></td></tr>}</tbody></table></div></section>
+}
+@if (hostelManager && hostelAllocations.Any())
+{
+    <section class="card table-card mb-3"><div class="section-title-row p-3"><h2>Active hostel allocations</h2></div><div class="table-responsive"><table class="table"><thead><tr><th>Student</th><th>Hostel</th><th>Room</th><th>Started</th><th class="text-end">Action</th></tr></thead><tbody>@foreach(var item in hostelAllocations){<tr><td>@item.Student.FullName</td><td>@item.HostelRoom.HostelName</td><td>@item.HostelRoom.RoomNumber</td><td>@item.StartsOn.ToString("dd MMM yyyy")</td><td class="text-end"><form asp-action="EndHostel" method="post" class="d-flex gap-2 justify-content-end"><input type="hidden" name="id" value="@item.Id"/><input type="date" name="endsOn" aria-label="End date" value="@DateTime.Today.ToString("yyyy-MM-dd")" class="form-control form-control-sm w-auto" required/><button class="btn btn-sm btn-outline-danger" data-confirm="Close this hostel allocation?">Check out</button></form></td></tr>}</tbody></table></div></section>
+}
+
+<section class="card table-card mb-3">
+    <div class="section-title-row p-3"><h2>Placement drives</h2></div>
+    @if (!drives.Any())
+    {
+        <partial name="_EmptyRecords" model="@(("" + "No placement drives", "No open or historical drives are available.", "", ""))" />
+    }
+    else
+    {
+        <div class="table-responsive"><table class="table"><thead><tr><th>Employer</th><th>Role</th><th>Deadline</th><th class="text-end">Action</th></tr></thead><tbody>@foreach (var item in drives) { <tr><td>@item.Employer</td><td>@item.RoleTitle</td><td>@item.ApplicationDeadlineUtc.ToLocalTime().ToString("dd MMM yyyy")</td><td class="text-end">@if (User.IsInRole("Student") && item.ApplicationDeadlineUtc > DateTime.UtcNow) { <form asp-action="ApplyForPlacement" method="post"><input type="hidden" name="driveId" value="@item.Id" /><button class="btn btn-sm btn-primary">Apply</button></form> }</td></tr> }</tbody></table></div>
+    }
+</section>
+
+@if (placementManager && applications.Any())
+{
+    <section class="card table-card mb-3">
+        <div class="section-title-row p-3"><h2>Placement applications</h2></div>
+        <div class="table-responsive"><table class="table"><thead><tr><th>Student</th><th>Drive</th><th>Applied</th><th>Status</th></tr></thead><tbody>@foreach (var item in applications) { <tr><td>@item.Student.FullName</td><td>@item.PlacementDrive.Employer · @item.PlacementDrive.RoleTitle</td><td>@item.AppliedUtc.ToLocalTime().ToString("dd MMM yyyy")</td><td><form asp-action="ReviewPlacement" method="post" class="d-flex gap-2"><input type="hidden" name="id" value="@item.Id" /><select name="status" class="form-select form-select-sm" aria-label="Placement status">@foreach (var status in new[] { "Applied", "Shortlisted", "Interview", "Selected", "Rejected", "Withdrawn" }) { <option value="@status" selected="@(item.Status == status)">@status</option> }</select><button class="btn btn-sm btn-outline-primary">Save</button></form></td></tr> }</tbody></table></div>
+    </section>
+}
+
+@if (privileged && employees.Any())
+{
+    <section class="card table-card">
+        <div class="section-title-row p-3"><h2>Employees</h2></div>
+        <div class="table-responsive"><table class="table"><thead><tr><th>Employee</th><th>Number</th><th>Job title</th><th>Department</th><th>Status</th><th class="text-end">Action</th></tr></thead><tbody>@foreach (var item in employees) { <tr><td>@item.User.FullName<small class="d-block text-muted">@item.User.Email</small></td><td>@item.EmployeeNumber</td><td>@item.JobTitle</td><td>@(item.Department?.Name ?? "Institution-wide")</td><td><span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">@(item.IsActive ? "Active" : "Inactive")</span></td><td class="text-end"><form asp-action="SetEmployeeActive" method="post"><input type="hidden" name="id" value="@item.Id" /><input type="hidden" name="active" value="@(!item.IsActive)" /><button class="btn btn-sm btn-outline-secondary" data-confirm="Change this employee account status?">@(item.IsActive ? "Deactivate" : "Activate")</button></form></td></tr> }</tbody></table></div>
+    </section>
+}

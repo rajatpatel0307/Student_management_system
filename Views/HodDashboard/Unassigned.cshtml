@@ -1,0 +1,12 @@
+@{
+    ViewData["Title"] = "Department not assigned";
+}
+<div class="page-header">
+    <div class="page-header-copy"><span class="eyebrow">HOD workspace</span><h1>Department assignment required</h1><p>Your account is active, but it is not connected to a department yet.</p></div>
+</div>
+<div class="empty-state card">
+    <span class="empty-state-icon"><i class="fa-solid fa-building-circle-exclamation"></i></span>
+    <h2>No department assigned</h2>
+    <p>Ask an Administrator to assign your HOD profile to a department. Your department dashboard will become available immediately afterward.</p>
+    <a asp-controller="Profile" asp-action="Index" class="btn btn-primary">View my profile</a>
+</div>

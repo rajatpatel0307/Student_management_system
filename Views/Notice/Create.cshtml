@@ -1,0 +1,23 @@
+@model Notice
+@{
+    ViewData["Title"] = "New announcement";
+    var departments = ViewBag.Departments as IEnumerable<Department> ?? Enumerable.Empty<Department>();
+}
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Campus communication</span><h1>New announcement</h1><p>Send a clear update to an authorized role or department audience.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
+<div class="card section-card form-card"><form method="post" novalidate><div asp-validation-summary="All"></div><div class="form-section">
+<div class="mb-3"><label asp-for="Title" class="form-label required"></label><input asp-for="Title" class="form-control" maxlength="160" placeholder="Short, descriptive announcement title" required /><span asp-validation-for="Title"></span></div>
+<div class="mb-3"><label asp-for="Message" class="form-label required"></label><textarea asp-for="Message" class="form-control" maxlength="4000" rows="7" placeholder="Write the announcement…" required></textarea><span asp-validation-for="Message"></span></div>
+@if (User.IsInRole("HOD"))
+{
+    <div class="alert alert-info">This announcement will be published to your assigned department.</div>
+    <input asp-for="TargetRole" type="hidden" value="Department" />
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-md-6"><label asp-for="TargetRole" class="form-label required">Audience</label><select asp-for="TargetRole" class="form-select" id="targetRole" required><option value="">Select audience</option><option value="All">Everyone</option><option value="Admin">Administrators</option><option value="HOD">HODs</option><option value="Professor">Professors</option><option value="Student">Students</option><option value="Guardian">Guardians</option><option value="Accountant">Accountants</option><option value="Librarian">Librarians</option><option value="AdmissionOfficer">Admission officers</option><option value="ExaminationOfficer">Examination officers</option><option value="Employee">Employees</option><option value="Department">Specific department</option></select></div>
+        <div class="col-md-6" id="departmentField"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" class="form-select"><option value="">Select department</option>@foreach (var item in departments) { <option value="@item.Id">@item.Name</option> }</select></div>
+    </div>
+}
+</div><div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit" data-confirm="Publish this announcement to the selected audience?"><i class="fa-solid fa-paper-plane me-1"></i> Publish</button></div></form></div>
+@section Scripts { <script nonce="@(ViewContext.HttpContext.Items["CspNonce"])">const target=document.getElementById('targetRole'),field=document.getElementById('departmentField'),department=document.getElementById('DepartmentId');function sync(){const visible=target?.value==='Department';if(field)field.hidden=!visible;if(department)department.required=visible;}target?.addEventListener('change',sync);sync();</script> }

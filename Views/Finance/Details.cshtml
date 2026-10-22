@@ -1,0 +1,174 @@
+@model Student_Management_System.Models.FinancialTransaction
+@using Student_Management_System.Models
+@using Student_Management_System.Services
+@inject PermissionService Permissions
+@{
+    ViewData["Title"] = "Receipt " + Model.ReceiptNumber;
+    var hasReversal = ViewBag.HasReversal is bool reversalExists && reversalExists;
+    var refundedAmount = ViewBag.RefundedAmount is decimal refunded ? refunded : 0m;
+    var refundableAmount = ViewBag.RefundableAmount is decimal refundable ? refundable : Model.Amount;
+    var feePaid = ViewBag.FeePaid is decimal paid ? paid : Model.Amount;
+    var feeBalance = ViewBag.FeeBalance is decimal balance ? balance : Math.Max(0m, Model.Fee.Amount - feePaid);
+    var institution = ViewBag.Institution as Institution;
+    var refundKey = $"refund:{Model.Id}:{Guid.NewGuid():N}";
+    var badgeClass = Model.Type == FinancialTransactionType.Payment ? "bg-success" :
+        Model.Type == FinancialTransactionType.Reversal ? "bg-danger" : "bg-warning";
+    var canRefund = await Permissions.HasAsync(User, "fees.refund");
+    var canAdjust = await Permissions.HasAsync(User, "fees.adjust");
+    var institutionName = institution?.Name ?? "EduFlow Institution";
+    var institutionAddress = institution?.Address ?? "Official campus finance office";
+}
+
+<div class="finance-receipt-page">
+    <div class="page-header receipt-screen-only">
+        <div class="page-header-copy">
+            <span class="eyebrow">Finance / Transaction record</span>
+            <div class="receipt-title-row">
+                <h1>@Model.ReceiptNumber</h1>
+                <span class="badge @badgeClass"><span class="status-dot"></span>@Model.Type</span>
+            </div>
+            <p>@Model.Student.FullName · @Model.CreatedUtc.ToLocalTime().ToString("dd MMMM yyyy, HH:mm")</p>
+        </div>
+        <div class="page-actions">
+            <a asp-action="Index" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left"></i> Ledger</a>
+            <button class="btn btn-outline-secondary" type="button"
+                    data-copy-value="@Model.ReceiptNumber" data-copy-label="Receipt number">
+                <i class="fa-regular fa-copy"></i> Copy number
+            </button>
+            <button class="btn btn-outline-secondary" type="button" data-print-page>
+                <i class="fa-solid fa-print"></i> Print fee slip
+            </button>
+            <a asp-action="Ledger" asp-route-studentId="@Model.StudentId" class="btn btn-primary">
+                <i class="fa-solid fa-book-open"></i> Student ledger
+            </a>
+        </div>
+    </div>
+
+    <section class="fee-slip" aria-labelledby="feeSlipTitle">
+        <header class="fee-slip-header">
+            <span class="fee-slip-logo" aria-hidden="true"><i class="fa-solid fa-graduation-cap"></i></span>
+            <div>
+                <h2 id="feeSlipTitle">@institutionName</h2>
+                <p>@institutionAddress</p>
+                @if (!string.IsNullOrWhiteSpace(institution?.Email) || !string.IsNullOrWhiteSpace(institution?.Phone))
+                {
+                    <small>@institution?.Email @(!string.IsNullOrWhiteSpace(institution?.Email) && !string.IsNullOrWhiteSpace(institution?.Phone) ? " · " : "") @institution?.Phone</small>
+                }
+            </div>
+            <div class="fee-slip-status">
+                <strong>FEE RECEIPT</strong>
+                <span class="badge @badgeClass">@Model.Status</span>
+            </div>
+        </header>
+
+        <div class="fee-slip-information">
+            <dl>
+                <div><dt>Receipt No.</dt><dd>@Model.ReceiptNumber</dd></div>
+                <div><dt>Date</dt><dd>@Model.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy")</dd></div>
+                <div><dt>Class</dt><dd>@(Model.Student.Class?.Name ?? "Not assigned")</dd></div>
+                <div><dt>Section</dt><dd>@(Model.Student.Section?.Name ?? "Not assigned")</dd></div>
+            </dl>
+            <dl>
+                <div><dt>Student Name</dt><dd>@Model.Student.FullName</dd></div>
+                <div><dt>Admission No.</dt><dd>@(Model.Student.AdmissionNumber ?? "Not recorded")</dd></div>
+                <div><dt>Roll No.</dt><dd>@(Model.Student.RollNumber ?? "Not recorded")</dd></div>
+                <div><dt>Mobile</dt><dd>@(Model.Student.Phone ?? "Not recorded")</dd></div>
+            </dl>
+            <div class="fee-slip-student-mark" aria-hidden="true">
+                <i class="fa-solid fa-user-graduate"></i>
+            </div>
+        </div>
+
+        <div class="fee-slip-table-wrap">
+            <table class="fee-slip-table">
+                <thead><tr><th scope="col">S.No.</th><th scope="col">Particulars</th><th scope="col" class="text-end">Amount</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td><strong>@Model.Fee.Term</strong><small>Due @Model.Fee.DueDate.ToString("dd MMM yyyy")</small></td><td class="text-end">@Model.Amount.ToString("C")</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="fee-slip-footer">
+            <div class="fee-slip-verification">
+                <span><i class="fa-solid fa-shield-halved"></i></span>
+                <div><strong>System verified</strong><small>Transaction ID #@Model.Id</small></div>
+            </div>
+            <dl class="fee-slip-payment-meta">
+                <div><dt>Payment mode</dt><dd>@Model.PaymentMethod</dd></div>
+                <div><dt>Reference</dt><dd>@(Model.TransactionReference ?? "Not provided")</dd></div>
+                <div><dt>Notes</dt><dd>@(Model.Notes ?? "No notes")</dd></div>
+            </dl>
+            <dl class="fee-slip-totals">
+                <div><dt>Total fee</dt><dd>@Model.Fee.Amount.ToString("C")</dd></div>
+                <div><dt>Net paid</dt><dd>@feePaid.ToString("C")</dd></div>
+                <div class="received"><dt>@(Model.Amount >= 0 ? "Amount received" : "Transaction amount")</dt><dd>@Model.Amount.ToString("C")</dd></div>
+                <div class="balance"><dt>Balance</dt><dd>@feeBalance.ToString("C")</dd></div>
+            </dl>
+        </footer>
+        <div class="fee-slip-signature"><span>Received by</span><span>Authorized signature</span></div>
+    </section>
+
+    @if (Model.ReversesTransactionId.HasValue)
+    {
+        <div class="alert alert-warning mt-3 receipt-screen-only">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>This entry reverses <a asp-action="Details" asp-route-id="@Model.ReversesTransactionId" class="alert-link">@(Model.ReversesTransaction?.ReceiptNumber ?? $"transaction #{Model.ReversesTransactionId}")</a>.</span>
+        </div>
+    }
+
+    <div class="finance-action-stack receipt-screen-only">
+        @if (canRefund && Model.Type == FinancialTransactionType.Payment)
+        {
+            @if (hasReversal)
+            {
+                <div class="alert alert-info mb-0"><i class="fa-solid fa-circle-check"></i><span>This payment has already been fully returned. No further reversal is allowed.</span></div>
+            }
+            else
+            {
+                <details class="finance-action-disclosure danger">
+                    <summary><i class="fa-solid fa-rotate-left"></i><span>Reverse payment</span><i class="fa-solid fa-chevron-down disclosure-chevron"></i></summary>
+                    <div class="finance-action-body">
+                        <p>A reversal creates a linked negative entry; the original receipt remains unchanged.</p>
+                        <form asp-action="Reverse" method="post" class="row g-3 align-items-end">
+                            <input type="hidden" name="id" value="@Model.Id" />
+                            <div class="col-md-8"><label class="form-label" for="reversalReason">Required reversal reason</label><input id="reversalReason" name="reason" class="form-control" required maxlength="1000" placeholder="Explain why this payment must be reversed" /></div>
+                            <div class="col-md-4"><button class="btn btn-danger w-100" type="submit" data-confirm="@($"Create an irreversible reversal entry for {Model.ReceiptNumber}?")"><i class="fa-solid fa-rotate-left"></i> Confirm reversal</button></div>
+                        </form>
+                    </div>
+                </details>
+            }
+        }
+
+        @if (canRefund && Model.Type == FinancialTransactionType.Payment && refundableAmount > 0)
+        {
+            <details class="finance-action-disclosure danger">
+                <summary><i class="fa-solid fa-money-bill-transfer"></i><span>Refund payment</span><i class="fa-solid fa-chevron-down disclosure-chevron"></i></summary>
+                <div class="finance-action-body">
+                    <p>A refund creates a linked negative ledger entry and cannot exceed the original payment.</p>
+                    <form asp-action="Refund" method="post" class="row g-3 align-items-end">
+                        <input type="hidden" name="id" value="@Model.Id"/><input type="hidden" name="idempotencyKey" value="@refundKey"/>
+                        <div class="col-md-3"><label class="form-label" for="refundAmount">Amount</label><input id="refundAmount" name="amount" type="number" min="0.01" max="@refundableAmount" step="0.01" class="form-control" required/><small class="form-text">Refunded @refundedAmount.ToString("C"); remaining @refundableAmount.ToString("C").</small></div>
+                        <div class="col-md-7"><label class="form-label" for="refundReason">Reason</label><input id="refundReason" name="reason" maxlength="1000" class="form-control" required/></div>
+                        <div class="col-md-2"><button class="btn btn-outline-danger w-100" data-confirm="Create this immutable refund entry?">Refund</button></div>
+                    </form>
+                </div>
+            </details>
+        }
+
+        @if (canAdjust)
+        {
+            <details class="finance-action-disclosure primary">
+                <summary><i class="fa-solid fa-scale-balanced"></i><span>Ledger adjustment</span><i class="fa-solid fa-chevron-down disclosure-chevron"></i></summary>
+                <div class="finance-action-body">
+                    <p>Positive amounts credit the account; negative amounts increase the balance due.</p>
+                    <form asp-action="Adjust" method="post" class="row g-3 align-items-end">
+                        <input type="hidden" name="studentId" value="@Model.StudentId"/><input type="hidden" name="feeId" value="@Model.FeeId"/>
+                        <div class="col-md-3"><label class="form-label" for="adjustmentAmount">Amount</label><input id="adjustmentAmount" name="amount" type="number" step="0.01" class="form-control" required/></div>
+                        <div class="col-md-7"><label class="form-label" for="adjustmentReason">Reason</label><input id="adjustmentReason" name="reason" maxlength="1000" class="form-control" required/></div>
+                        <div class="col-md-2"><button class="btn btn-outline-primary w-100" data-confirm="Create this immutable adjustment entry?">Adjust</button></div>
+                    </form>
+                </div>
+            </details>
+        }
+    </div>
+</div>
