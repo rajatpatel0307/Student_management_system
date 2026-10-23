@@ -25,6 +25,8 @@ namespace Student_Management_System.Controllers
         {
             if (User.IsInRole("SuperAdmin")) return RedirectToAction("Index", "SuperAdmin");
             if (User.IsInRole("Admin")) return RedirectToAction("Index", "Dashboard");
+            var staffWorkspace = Student_Management_System.Services.StaffWorkspaceCatalog.All.FirstOrDefault(w => User.IsInRole(w.Role));
+            if (staffWorkspace != null) return RedirectToAction("Workspace", "Staff", new { workspace = staffWorkspace.Key });
             if (User.IsInRole("HOD")) return RedirectToAction("Index", "HodDashboard");
             if (User.IsInRole("Professor")) return RedirectToAction("Index", "ProfessorDashboard");
             if (User.IsInRole("Student")) return RedirectToAction("Index", "StudentDashboard");

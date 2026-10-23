@@ -4,6 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <DefaultItemExcludes>$(DefaultItemExcludes);.build/**;StaffTests/**</DefaultItemExcludes>
     <!-- Identifier only; secret values remain in the Windows user profile. -->
     <UserSecretsId>Student-Management-System-EduFlow-Local-20260804</UserSecretsId>
     <!-- Run through the trusted installed dotnet host instead of generating a
@@ -31,7 +32,7 @@
     <!-- 4.0 requires a build-time Six Labors license key. 3.1.12 retains the
          upload validation/re-encoding API used by this project without that
          build-time key requirement. Review the Split License for your use. -->
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="4.1.2" />
   </ItemGroup>
 
   <ItemGroup>

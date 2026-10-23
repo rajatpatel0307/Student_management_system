@@ -86,6 +86,10 @@ builder.Services.AddOptions<SmtpOptions>()
     .ValidateOnStart();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<PermissionService>();
+builder.Services.AddScoped<StaffRepository>();
+builder.Services.AddScoped<StaffAccessService>();
+builder.Services.AddScoped<StaffManagementService>();
+builder.Services.AddScoped<Student_Management_System.Modules.Registrar.CertificateService>();
 builder.Services.AddScoped<IAuthorizationHandler, GranularPermissionHandler>();
 builder.Services.AddScoped<ICampusScopeService, CampusScopeService>();
 builder.Services.AddScoped<IResultService, ResultService>();
@@ -304,7 +308,7 @@ builder.Services.Configure<IdentityOptions>(options =>
 builder.Services.Configure<SecurityStampValidatorOptions>(options =>
 {
     // Role, password, MFA and active-account changes revoke live sessions quickly.
-    options.ValidationInterval = TimeSpan.FromMinutes(1);
+    options.ValidationInterval = TimeSpan.Zero;
 });
 
 builder.Services.AddAuthorizationBuilder()
@@ -396,6 +400,8 @@ if (app.Environment.IsDevelopment() && skipDatabaseBootstrap)
         var compatibilityDb = compatibilityScope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
         await DatabaseCompatibilityRepair.RepairLatestSchemaAsync(compatibilityDb);
+        if (builder.Configuration.GetValue<bool>("DatabaseBootstrap:ApplyMigrationsOnStartup"))
+            await StaffModuleSetup.ApplyPendingDevelopmentMigrationsAsync(compatibilityDb);
     }
     catch (Exception exception)
     {
@@ -503,7 +509,7 @@ if (bootstrapOnly || initializeDevelopment)
     {
         "SuperAdmin", "Admin", "HOD", "Professor", "Student", "Guardian",
         "Accountant", "Librarian", "AdmissionOfficer", "ExaminationOfficer",
-        "TransportManager", "HostelManager", "PlacementOfficer", "Employee"
+        "TransportManager", "HostelManager", "Registrar", "PlacementOfficer", "Employee"
     };
 
     // 🔥 Create roles
@@ -527,6 +533,16 @@ if (bootstrapOnly || initializeDevelopment)
         builder.Configuration);
     var permissionCatalog = new Dictionary<string, string>
     {
+        ["staff.manage"] = "Manage operational staff accounts and permissions",
+        ["transport.manage"] = "Manage transport workspace operations",
+        ["hostel.manage"] = "Manage hostel workspace operations",
+        ["registrar.manage"] = "Manage registrar requests and records",
+        ["finance.expenses.manage"] = "Record and approve institutional expenses",
+        ["workspace.librarian"] = "Access the library staff workspace",
+        ["workspace.transport"] = "Access the transport staff workspace",
+        ["workspace.hostel"] = "Access the hostel staff workspace",
+        ["workspace.registrar"] = "Access the registrar staff workspace",
+        ["workspace.accountant"] = "Access the finance staff workspace",
         ["student.view"] = "View authorized student profiles",
         ["student.create"] = "Create student records",
         ["student.update"] = "Update student records",
@@ -592,7 +608,9 @@ if (bootstrapOnly || initializeDevelopment)
 
     var defaultRolePermissions = new Dictionary<string, string[]>
     {
+        ["Registrar"] = ["registrar.manage", "admission.view", "admission.create", "admission.review", "admission.approve", "documents.generate", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
         ["Admin"] = [
+            "staff.manage", "transport.manage", "hostel.manage", "registrar.manage", "finance.expenses.manage", "library.manage",
             "student.view", "student.create", "student.update", "student.promote",
             "attendance.view", "marks.view", "marks.approve",
             "admission.view", "admission.create", "admission.review", "admission.approve",
@@ -606,15 +624,15 @@ if (bootstrapOnly || initializeDevelopment)
             "ManageStudents", "ManageAcademics", "ViewReports", "ManageAnnouncements"
         ],
         ["AdmissionOfficer"] = ["admission.view", "admission.create", "admission.review", "admission.approve", "communications.manage", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
-        ["Accountant"] = ["fees.view", "fees.collect", "fees.adjust", "fees.refund", "finance.invoice", "approvals.manage", "reports.view", "reports.export", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
+        ["Accountant"] = ["finance.expenses.manage", "fees.view", "fees.collect", "fees.adjust", "fees.refund", "finance.invoice", "approvals.manage", "reports.view", "reports.export", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
         ["Librarian"] = ["library.manage", "library.issue", "library.return", "library.audit", "reports.view", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
         ["ExaminationOfficer"] = ["marks.view", "marks.approve", "results.publish", "approvals.manage", "reports.view", "reports.export", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
         ["HOD"] = ["student.view", "student.lifecycle.approve", "attendance.view", "attendance.create", "attendance.correct", "attendance.approve", "marks.view", "marks.enter", "marks.approve", "approvals.manage", "reports.view", "reports.export", PermissionKeys.ProfileImageEditSelf, PermissionKeys.ProfileStudentEdit, PermissionKeys.ProfileProfessorEdit, PermissionKeys.ProfessorViewDepartment, PermissionKeys.ProfessorManageDepartment, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
         ["Professor"] = ["student.view", "attendance.view", "attendance.create", "marks.view", "marks.enter", "timetable.manage", "reports.export", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
         ["Student"] = ["attendance.view", "marks.view", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
         ["Guardian"] = ["attendance.view", "marks.view", "fees.view", PermissionKeys.ProfileImageEditSelf],
-        ["TransportManager"] = [PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
-        ["HostelManager"] = [PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
+        ["TransportManager"] = ["transport.manage", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
+        ["HostelManager"] = ["hostel.manage", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
         ["PlacementOfficer"] = [PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
         ["Employee"] = [PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView]
     };
@@ -696,6 +714,7 @@ app.UseRouting();
 app.UseRateLimiter();
 
 app.UseAuthentication();
+app.UseMiddleware<StaffIsolationMiddleware>();
 app.UseMiddleware<MustChangePasswordMiddleware>();
 app.UseMiddleware<PrivilegedMfaMiddleware>();
 app.UseAuthorization();

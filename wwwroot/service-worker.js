@@ -1,4 +1,4 @@
-const CACHE_NAME = "eduflow-static-v2";
+const CACHE_NAME = "eduflow-static-v4";
 const STATIC_ASSETS = [
     "/offline.html",
     "/css/site.css",
@@ -25,6 +25,8 @@ self.addEventListener("fetch", event => {
     if (request.method !== "GET" || requestUrl.origin !== self.location.origin) return;
 
     const privatePrefixes = [
+        "/api/staff",
+        "/Staff/Certificates",
         "/StudyMaterials/Download",
         "/Students/Photo",
         "/Admissions/DownloadDocument",

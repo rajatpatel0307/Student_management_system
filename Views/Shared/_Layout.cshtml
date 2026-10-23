@@ -23,6 +23,7 @@
         : User.IsInRole("ExaminationOfficer") ? "Examination Officer"
         : User.IsInRole("TransportManager") ? "Transport Manager"
         : User.IsInRole("HostelManager") ? "Hostel Manager"
+        : User.IsInRole("Registrar") ? "Registrar"
         : User.IsInRole("PlacementOfficer") ? "Placement Officer"
         : User.IsInRole("Employee") ? "Employee"
         : "User";
@@ -114,6 +115,33 @@
             </div>
 
             <nav class="sidebar-nav">
+                @{
+                    var operationalWorkspace = ViewData["StaffWorkspace"] as StaffWorkspace
+                        ?? StaffWorkspaceCatalog.All.FirstOrDefault(w => User.IsInRole(w.Role));
+                }
+                @if (operationalWorkspace != null)
+                {
+                    <div class="nav-group">
+                        <p class="nav-label">Staff workspace</p>
+                        <a class="nav-link" href="/Staff/Workspace/@operationalWorkspace.Key">
+                            <i class="fa-solid fa-table-cells-large"></i><span>@operationalWorkspace.Title dashboard</span>
+                        </a>
+                        @foreach (var staffPage in operationalWorkspace.Pages)
+                        {
+                            <a class="nav-link @(ViewContext.RouteData.Values["page"]?.ToString() == staffPage.Slug ? "active" : "")" href="/Staff/Workspace/@operationalWorkspace.Key/@staffPage.Slug"><i class="fa-solid fa-list-check"></i><span>@staffPage.Title</span></a>
+                        }
+                        <a class="nav-link" href="/Staff/Workspace/@operationalWorkspace.Key/messages"><i class="fa-regular fa-envelope"></i><span>Messages</span></a>
+                        <a class="nav-link" href="/Staff/Workspace/@operationalWorkspace.Key/activity"><i class="fa-solid fa-clock-rotate-left"></i><span>Activity history</span></a>
+                        <a class="nav-link" href="/Profile"><i class="fa-regular fa-user"></i><span>Profile</span></a>
+                        <a class="nav-link" href="/Account/ChangePassword"><i class="fa-solid fa-key"></i><span>Change password</span></a>
+                        <a class="nav-link" href="/Notifications"><i class="fa-regular fa-bell"></i><span>Notifications</span></a>
+                        <a class="nav-link" href="/Staff/Workspace/@operationalWorkspace.Key/settings"><i class="fa-solid fa-sliders"></i><span>Settings</span></a>
+                        <a class="nav-link" href="/Staff/Workspace/@operationalWorkspace.Key/help"><i class="fa-regular fa-circle-question"></i><span>Help &amp; support</span></a>
+                    </div>
+                }
+
+                @if (operationalWorkspace == null || User.IsInRole("Admin") || User.IsInRole("SuperAdmin"))
+                {
                 @if (User.IsInRole("SuperAdmin"))
                 {
                     <div class="nav-group">
@@ -140,6 +168,9 @@
                 {
                     <div class="nav-group">
                         <p class="nav-label">Administration</p>
+                        <a class="nav-link @IsActive("Staff")" href="/Staff">
+                            <i class="fa-solid fa-user-shield"></i><span>Staff Management</span>
+                        </a>
                         <a class="nav-link @IsActive("Dashboard")" asp-controller="Dashboard" asp-action="Index">
                             <i class="fa-solid fa-table-cells-large"></i><span>Dashboard</span>
                         </a>
@@ -385,6 +416,7 @@
                         <i class="fa-solid fa-magnifying-glass"></i><span>Global search</span>
                     </a>
                 </div>
+                }
             </nav>
 
             <div class="sidebar-footer">

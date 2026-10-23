@@ -37,7 +37,7 @@ public sealed class ProfileManagementAuthorizationService
     {
         "Accountant", "Librarian", "Admissions", "AdmissionsStaff",
         "ExaminationOfficer", "PlacementOfficer", "Employee", "Staff",
-        "TransportManager", "HostelManager"
+        "TransportManager", "HostelManager", "Registrar"
     };
 
     private readonly ApplicationDbContext _db;

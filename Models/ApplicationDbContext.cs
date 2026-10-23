@@ -11,6 +11,15 @@ namespace Student_Management_System.Models
         }
 
         public DbSet<Student> Students { get; set; }
+        public DbSet<StaffMember> StaffMembers { get; set; }
+        public DbSet<StaffWorkItem> StaffWorkItems { get; set; }
+        public DbSet<TransportDriver> TransportDrivers { get; set; }
+        public DbSet<StaffExpense> StaffExpenses { get; set; }
+        public DbSet<StaffMessage> StaffMessages { get; set; }
+        public DbSet<RegistrarCertificate> RegistrarCertificates { get; set; }
+        public DbSet<StaffAttendanceRecord> StaffAttendanceRecords { get; set; }
+        public DbSet<TransportTrip> TransportTrips { get; set; }
+        public DbSet<VehicleFuelLog> VehicleFuelLogs { get; set; }
         public DbSet<Class> Classes { get; set; }
         public DbSet<Section> Sections { get; set; }
         public DbSet<Teacher> Teachers { get; set; }
@@ -151,6 +160,35 @@ namespace Student_Management_System.Models
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<RegistrarCertificate>().HasIndex(c => c.CertificateNumber).IsUnique().HasFilter("[CertificateNumber] IS NOT NULL");
+            modelBuilder.Entity<RegistrarCertificate>().HasIndex(c => new { c.CampusId, c.Status, c.CertificateType });
+            modelBuilder.Entity<RegistrarCertificate>().HasOne(c => c.Student).WithMany().HasForeignKey(c => c.StudentId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<RegistrarCertificate>().HasOne(c => c.Campus).WithMany().HasForeignKey(c => c.CampusId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StaffAttendanceRecord>().HasIndex(a => new { a.Workspace, a.StudentId, a.AttendanceDate }).IsUnique();
+            modelBuilder.Entity<StaffAttendanceRecord>().HasOne(a => a.Student).WithMany().HasForeignKey(a => a.StudentId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StaffAttendanceRecord>().HasOne(a => a.Campus).WithMany().HasForeignKey(a => a.CampusId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TransportTrip>().HasOne(t => t.TransportVehicle).WithMany().HasForeignKey(t => t.TransportVehicleId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TransportTrip>().HasOne(t => t.TransportDriver).WithMany().HasForeignKey(t => t.TransportDriverId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TransportTrip>().HasOne(t => t.TransportRoute).WithMany().HasForeignKey(t => t.TransportRouteId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TransportTrip>().HasIndex(t => new { t.ScheduledOn, t.Status });
+            modelBuilder.Entity<TransportTrip>().HasIndex(t => new { t.TransportVehicleId, t.ScheduledOn, t.DepartureTime }).IsUnique().HasFilter("[Status] <> 'Cancelled'");
+            modelBuilder.Entity<TransportTrip>().HasIndex(t => new { t.TransportDriverId, t.ScheduledOn, t.DepartureTime }).IsUnique().HasFilter("[Status] <> 'Cancelled'");
+            modelBuilder.Entity<VehicleFuelLog>().HasIndex(f => new { f.TransportVehicleId, f.FilledOn });
+            modelBuilder.Entity<VehicleFuelLog>().HasOne(f => f.TransportVehicle).WithMany().HasForeignKey(f => f.TransportVehicleId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TransportDriver>().HasIndex(d => d.LicenseNumber).IsUnique();
+            modelBuilder.Entity<TransportVehicle>().HasOne(v => v.TransportDriver).WithMany().HasForeignKey(v => v.TransportDriverId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TransportVehicle>().HasOne(v => v.TransportRoute).WithMany().HasForeignKey(v => v.TransportRouteId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StaffExpense>().HasIndex(e => new { e.Status, e.ExpenseDate });
+            modelBuilder.Entity<StaffMessage>().HasOne(m => m.SenderUser).WithMany().HasForeignKey(m => m.SenderUserId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StaffMessage>().HasOne(m => m.RecipientUser).WithMany().HasForeignKey(m => m.RecipientUserId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StaffMessage>().HasIndex(m => new { m.RecipientUserId, m.ReadUtc, m.CreatedUtc });
+            modelBuilder.Entity<StaffMember>().HasIndex(s => s.EmployeeProfileId).IsUnique();
+            modelBuilder.Entity<StaffMember>().HasIndex(s => new { s.PrimaryRole, s.IsDeleted });
+            modelBuilder.Entity<StaffMember>().HasOne(s => s.EmployeeProfile).WithOne()
+                .HasForeignKey<StaffMember>(s => s.EmployeeProfileId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StaffWorkItem>().HasIndex(w => new { w.Workspace, w.Category, w.Status });
+            modelBuilder.Entity<StaffWorkItem>().HasOne(w => w.Student).WithMany()
+                .HasForeignKey(w => w.StudentId).OnDelete(DeleteBehavior.Restrict);
 
             // 🔥 Section → Class (FIX)
             modelBuilder.Entity<Section>()

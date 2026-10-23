@@ -53,7 +53,8 @@ namespace Student_Management_System.Controllers
                 return View();
             }
 
-            var user = await _userManager.FindByEmailAsync(email);
+            var user = await _userManager.FindByEmailAsync(email)
+                ?? await _userManager.FindByNameAsync(email);
             if (user == null)
             {
                 await RecordLoginAsync(email, false, null);
@@ -98,6 +99,10 @@ namespace Student_Management_System.Controllers
                 return RedirectToAction("Index", "SuperAdmin");
             if (roles.Contains("Admin"))
                 return RedirectToAction("Index", "Dashboard");
+
+            var staffWorkspace = StaffWorkspaceCatalog.All.FirstOrDefault(w => roles.Contains(w.Role));
+            if (staffWorkspace != null)
+                return RedirectToAction("Workspace", "Staff", new { workspace = staffWorkspace.Key });
 
             if (roles.Contains("HOD"))
                 return RedirectToAction("Index", "HodDashboard");

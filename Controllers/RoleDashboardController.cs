@@ -17,7 +17,7 @@ public sealed class RoleDashboardController : Controller
     [Authorize(Roles = "Accountant")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public Task<IActionResult> Finance([FromQuery] DashboardFilterInput filter, CancellationToken cancellationToken) =>
-        RenderAsync("Accountant", filter, cancellationToken);
+        Task.FromResult<IActionResult>(RedirectToAction("Workspace", "Staff", new { workspace = "accountant" }));
 
     [Authorize(Roles = "AdmissionOfficer")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
@@ -27,7 +27,7 @@ public sealed class RoleDashboardController : Controller
     [Authorize(Roles = "Librarian")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public Task<IActionResult> Library([FromQuery] DashboardFilterInput filter, CancellationToken cancellationToken) =>
-        RenderAsync("Librarian", filter, cancellationToken);
+        Task.FromResult<IActionResult>(RedirectToAction("Workspace", "Staff", new { workspace = "librarian" }));
 
     [Authorize(Roles = "ExaminationOfficer")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
@@ -36,8 +36,12 @@ public sealed class RoleDashboardController : Controller
 
     [Authorize(Roles = "TransportManager,HostelManager,PlacementOfficer,Employee")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public Task<IActionResult> Operations([FromQuery] DashboardFilterInput filter, CancellationToken cancellationToken) =>
-        RenderAsync("Operations", filter, cancellationToken);
+    public Task<IActionResult> Operations([FromQuery] DashboardFilterInput filter, CancellationToken cancellationToken)
+    {
+        var workspace = User.IsInRole("TransportManager") ? "transport" : User.IsInRole("HostelManager") ? "hostel" : null;
+        return workspace == null ? RenderAsync("Operations", filter, cancellationToken)
+            : Task.FromResult<IActionResult>(RedirectToAction("Workspace", "Staff", new { workspace }));
+    }
 
     [Authorize(Policy = "Dashboard.Export")]
     [HttpGet]

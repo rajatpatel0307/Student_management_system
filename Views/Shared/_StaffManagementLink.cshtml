@@ -1,0 +1,4 @@
+@if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin"))
+{
+<section class="card section-card mb-4"><div class="d-flex justify-content-between align-items-center flex-wrap gap-3"><div><span class="eyebrow">People and operations</span><h2 class="h5 mb-1">Staff Management</h2><p class="text-muted mb-0">Add staff, assign roles and open library, transport, hostel, registrar and finance workspaces.</p></div><a class="btn btn-primary" href="/Staff"><i class="fa-solid fa-users me-1"></i> Manage staff</a></div></section>
+}

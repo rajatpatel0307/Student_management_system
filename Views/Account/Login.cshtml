@@ -24,7 +24,7 @@
             <div class="auth-card-header">
                 <span class="eyebrow">Welcome back</span>
                 <h2>Sign in to your account</h2>
-                <p>Use the email and password provided by your institution.</p>
+                <p>Use the email or username and password provided by your institution.</p>
             </div>
 
             @if (ViewBag.Error != null)
@@ -35,8 +35,8 @@
             <form asp-action="Login" method="post" novalidate>
                 <input type="hidden" name="returnUrl" value="@ViewContext.HttpContext.Request.Query["returnUrl"]" />
                 <div class="mb-3">
-                    <label class="form-label required" for="email">Email address</label>
-                    <input id="email" name="email" type="email" class="form-control" placeholder="you@school.edu" autocomplete="username" required autofocus />
+                    <label class="form-label required" for="email">Email or username</label>
+                    <input id="email" name="email" type="text" class="form-control" placeholder="Email address or username" autocomplete="username" required autofocus />
                 </div>
                 <div class="mb-2">
                     <div class="d-flex justify-content-between align-items-center">

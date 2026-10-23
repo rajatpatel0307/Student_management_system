@@ -1,0 +1,37 @@
+@model StaffWorkspacePageModel
+@{ ViewData["Title"] = Model.Page == "dashboard" ? Model.Workspace.Title + " Dashboard" : Model.Definition?.Title ?? System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(Model.Page); }
+<div data-staff-native data-workspace="@Model.Workspace.Key" data-page="@Model.Page">
+@Html.AntiForgeryToken()
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">@Model.Workspace.Title workspace</span><h1>@ViewData["Title"]</h1><p>@(Model.Page == "dashboard" ? Model.Workspace.Description : "Manage module records, supporting requests and reviews.")</p></div><div class="page-actions"><a class="btn btn-outline-secondary" href="/Staff/Workspace/@Model.Workspace.Key">Dashboard</a>@if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin")) { <a class="btn btn-primary" href="/Staff">Staff Management</a> }</div></div>
+<div class="alert alert-danger d-none" data-staff-error role="alert"></div><div class="alert alert-success d-none" data-staff-success role="status"></div>
+@if (Model.Page == "dashboard")
+{
+    <div class="metric-grid mb-4" data-workspace-metrics aria-live="polite"><div class="card p-4">Loading dashboard totals…</div></div>
+    <section class="card section-card mb-4"><h2 class="h5">Quick navigation</h2><div class="row g-3">@foreach (var workspacePage in Model.Workspace.Pages) { <div class="col-sm-6 col-xl-4"><a class="btn btn-outline-secondary w-100 text-start" href="/Staff/Workspace/@Model.Workspace.Key/@workspacePage.Slug"><i class="fa-solid fa-chevron-right me-2"></i>@workspacePage.Title</a></div> }</div></section>
+    <section class="card section-card"><h2 class="h5">Recent workspace activity</h2><div data-recent-activity>Loading activity…</div></section>
+}
+else if (Model.Page == "help")
+{
+    <section class="card section-card"><h2 class="h5">Help and support</h2><p>Contact your institution's administrator for account recovery, campus assignments or permission changes.</p><p>Use the sidebar to open your role's pages. Review supporting requests in order: verify, approve, then complete the official work. Certificates and financial records use their own approval controls.</p><a class="btn btn-primary" href="/Staff/Workspace/@Model.Workspace.Key/messages">Message a staff member</a></section>
+}
+else if (Model.Page == "settings")
+{
+    <section class="card section-card"><h2 class="h5">Personal settings</h2><p>Manage your own account using the institution's existing account pages.</p><div class="d-flex gap-3 flex-wrap"><a class="btn btn-primary" href="/Profile">Profile and photo</a><a class="btn btn-outline-primary" href="/Account/ChangePassword">Change password</a><a class="btn btn-outline-secondary" href="/Notifications">Notifications</a></div></section>
+}
+else if (Model.Page == "activity")
+{
+    <section class="card section-card"><h2 class="h5">Your activity history</h2><div data-personal-activity>Loading activity…</div></section>
+}
+else if (Model.Page == "messages")
+{
+    <section class="card section-card mb-4"><h2 class="h5">Compose message</h2><form data-json-api="/api/staff-workspace/messages" data-reload="true"><div class="row g-3"><div class="col-md-6"><label class="form-label" for="message-recipient">Recipient's institutional email</label><input class="form-control" id="message-recipient" name="recipientEmail" type="email" required maxlength="256" /></div><div class="col-md-6"><label class="form-label" for="message-subject">Subject</label><input class="form-control" id="message-subject" name="subject" required maxlength="160" /></div><div class="col-12"><label class="form-label" for="message-body">Message</label><textarea id="message-body" name="body" class="form-control" required maxlength="4000" rows="4"></textarea></div><div class="col-12"><button class="btn btn-primary" type="submit">Send message</button></div></div></form></section><section class="card section-card"><div class="d-flex gap-2 mb-3"><button class="btn btn-primary" type="button" data-message-box="inbox">Inbox</button><button class="btn btn-outline-secondary" type="button" data-message-box="sent">Sent</button></div><div data-messages>Loading messages…</div></section>
+}
+else
+{
+    @if (Model.Definition?.Href != null) { <section class="card section-card mb-4"><div class="d-flex justify-content-between align-items-center flex-wrap gap-3"><div><h2 class="h5">Institutional workflow</h2><p class="mb-0 text-muted">Open the existing @Model.Definition.Title.ToLowerInvariant() tools.</p></div><a class="btn btn-outline-primary" href="@Model.Definition.Href">Open workflow <i class="fa-solid fa-arrow-right ms-1"></i></a></div></section> }
+    <div data-resource-register></div>
+    <section class="card section-card"><div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3"><div><h2 class="h5">Supporting requests</h2><p class="text-muted mb-0">Pending → Verified → Approved → Completed. Official records remain in their registers.</p></div><button class="btn btn-primary" type="button" data-new-request>New request</button></div><form data-request-search class="d-flex flex-wrap gap-2 mb-3"><label class="visually-hidden" for="request-search">Search requests</label><input id="request-search" class="form-control w-auto" name="search" placeholder="Title or reference" /><label class="visually-hidden" for="request-status">Status</label><select id="request-status" name="status" class="form-select w-auto"><option value="">All statuses</option><option>Pending</option><option>Verified</option><option>Approved</option><option>Completed</option><option>Rejected</option></select><button class="btn btn-outline-primary" type="submit">Search</button></form><div data-request-list>Loading requests…</div></section>
+}
+<div class="modal fade" id="staff-native-modal" tabindex="-1" aria-labelledby="staff-native-modal-title" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h2 class="modal-title fs-5" id="staff-native-modal-title"></h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><form data-modal-form><div class="modal-body"><div class="alert alert-danger d-none" data-modal-error role="alert"></div><div class="row g-3" data-modal-fields></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div></div>
+</div>
+@section Scripts { <script src="~/js/staff-resource-schemas.js" asp-append-version="true" defer></script><script src="~/js/staff-native.js" asp-append-version="true" defer></script> }

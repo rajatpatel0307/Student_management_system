@@ -8,7 +8,7 @@ using System.Security.Claims;
 
 namespace Student_Management_System.Controllers;
 
-[Authorize(Roles = "SuperAdmin,Admin,AdmissionOfficer")]
+[Authorize(Roles = "SuperAdmin,Admin,AdmissionOfficer,Registrar")]
 [PermissionAuthorize("admission.view")]
 public sealed class AdmissionsController : Controller
 {

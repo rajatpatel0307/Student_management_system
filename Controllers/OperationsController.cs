@@ -46,7 +46,9 @@ public sealed class OperationsController : Controller
             ? await _db.HostelRooms.AsNoTracking().OrderBy(r => r.HostelName).ThenBy(r => r.RoomNumber).ToListAsync()
             : new List<HostelRoom>();
         var drives = _db.PlacementDrives.AsNoTracking().AsQueryable();
-        ViewBag.PlacementDrives = await drives.OrderByDescending(d => d.ApplicationDeadlineUtc).Take(100).ToListAsync();
+        ViewBag.PlacementDrives = placementManager || User.IsInRole("Student")
+            ? await drives.OrderByDescending(d => d.ApplicationDeadlineUtc).Take(100).ToListAsync()
+            : new List<PlacementDrive>();
         ViewBag.Employees = privileged
             ? await _db.EmployeeProfiles.AsNoTracking().Include(e => e.User).Include(e => e.Department)
                 .OrderBy(e => e.EmployeeNumber).ToListAsync()

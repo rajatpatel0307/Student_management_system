@@ -548,6 +548,17 @@ public sealed class TransportVehicle
     [Required, MaxLength(80)] public string Model { get; set; } = "";
     public int Capacity { get; set; }
     public bool IsActive { get; set; } = true;
+    [MaxLength(30)] public string? VehicleNumber { get; set; }
+    [MaxLength(40)] public string? VehicleType { get; set; }
+    public int? TransportDriverId { get; set; }
+    public TransportDriver? TransportDriver { get; set; }
+    public int? TransportRouteId { get; set; }
+    public TransportRoute? TransportRoute { get; set; }
+    public DateTime? InsuranceExpiry { get; set; }
+    public DateTime? FitnessExpiry { get; set; }
+    public DateTime? PermitExpiry { get; set; }
+    [MaxLength(40)] public string MaintenanceStatus { get; set; } = "Ready";
+    [Timestamp] public byte[] RowVersion { get; set; } = [];
 }
 
 public sealed class TransportStop

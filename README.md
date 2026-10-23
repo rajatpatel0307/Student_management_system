@@ -47,6 +47,11 @@ embedded mail credential must be revoked before deployment.
 
 ## Modules
 
+The staff directory and five operational workspaces are described in
+[STAFF_MANAGEMENT.md](STAFF_MANAGEMENT.md), including database rollout, verification
+commands, completed workflows and remaining specialized integrations. Administrators
+open the module from **Staff Management** in the dashboard sidebar.
+
 - Super Admin account control and audit history
 - Student, teacher, class, section, and subject management
 - Admission applications with controlled stage history and secure enrollment
