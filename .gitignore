@@ -20,3 +20,5 @@ appsettings.*.Local.json
 *.pfx
 *.key
 *.pem
+
+**/Student_Management_System/App_Data/
