@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Student_Management_System.Models;
 
-public sealed class 
+public sealed class GradeBoundary
 {
     public int Id { get; set; }
     [Required, MaxLength(20)] public string Grade { get; set; } = "";
