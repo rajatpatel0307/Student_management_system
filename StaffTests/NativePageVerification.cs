@@ -47,9 +47,18 @@ public static class NativePageVerification
             using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false }) { BaseAddress = new Uri(app.Urls.Single()) };
             var directory = await client.GetAsync("/Staff"); var html = await directory.Content.ReadAsStringAsync();
             check(directory.IsSuccessStatusCode && html.Contains("Staff Management") && html.Contains("/Staff/Create"), "The authenticated staff directory must render its real Razor view and add-staff link.");
+            var sidebar = html.IndexOf("<nav class=\"sidebar-nav\">", StringComparison.Ordinal);
+            var manageStaff = sidebar < 0 ? -1 : html.IndexOf("title=\"Manage staff\"", sidebar, StringComparison.Ordinal);
+            check(sidebar >= 0 && manageStaff > sidebar && html.IndexOf("<span>Manage staff</span>", manageStaff, StringComparison.Ordinal) > manageStaff, "The administrator sidebar must expose the Manage staff menu item.");
+            identity.Role = "SuperAdmin";
+            var superAdminDirectory = await client.GetStringAsync("/Staff");
+            check(superAdminDirectory.Contains("title=\"Manage staff\""), "The Super Admin sidebar must also expose the Manage staff menu item.");
+            identity.Role = "Admin";
             check(!html.Contains("/staff-assets/staff.js") && !html.Contains("id=\"root\""), "Staff pages must not depend on the removed frontend application shell.");
             var form = await client.GetStringAsync("/Staff/Create");
             check(form.Contains("Input.FullName") && form.Contains("Input.ConfirmPassword") && form.Contains("/Staff/Save"), "The native add-staff form must render its server-bound fields and submit route.");
+            check(form.Contains("Generated automatically when saved") && !form.Contains("name=\"Input.EmployeeId\"") && !form.Contains("name=\"Input.Username\""), "The staff form must explain automatic identifiers without asking administrators to enter them.");
+            check(form.Contains("At least 10 characters") && form.Contains("minlength=\"10\"") && !form.Contains("minlength=\"12\""), "The staff form must display and validate the ten-character password minimum.");
             check(form.Contains("/css/site.css") && form.Contains("bootstrap"), "Staff pages must use the existing site styles and Bootstrap layout.");
             foreach (var workspace in StaffWorkspaceCatalog.All)
             {
@@ -60,6 +69,8 @@ public static class NativePageVerification
                 check(rolePage.IsSuccessStatusCode, "Every role's first operational page must be reachable by a normal server route.");
             }
             identity.UserId = librarianId; identity.Role = "Librarian";
+            var librarianPage = await client.GetStringAsync("/Staff/Workspace/librarian/books");
+            check(!librarianPage.Contains("title=\"Manage staff\""), "Staff-only accounts must not see the administrator's Manage staff menu.");
             check((int)(await client.GetAsync("/Staff")).StatusCode == 403, "Native staff administration must remain administrator-only.");
             check((int)(await client.GetAsync("/Staff/Workspace/accountant")).StatusCode == 403, "A librarian must not render the accountant workspace through direct navigation.");
             check((await client.GetAsync("/Staff/Workspace/librarian/books")).IsSuccessStatusCode, "A librarian must be able to open their native book management page.");

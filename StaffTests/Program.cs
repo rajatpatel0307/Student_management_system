@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
@@ -16,6 +17,14 @@ using Student_Management_System.Services;
 
 var assertions = 0;
 void Check(bool condition, string message) { assertions++; if (!condition) throw new Exception(message); }
+var autoInput = new StaffInput { FullName = "Auto identifiers", Email = "auto@test.invalid", Role = "Librarian" };
+Check(Validator.TryValidateObject(autoInput, new ValidationContext(autoInput), [], true), "Staff creation must not require a supplied employee ID or username.");
+autoInput.Password = "Staff!1234"; autoInput.ConfirmPassword = autoInput.Password;
+Check(Validator.TryValidateObject(autoInput, new ValidationContext(autoInput), [], true), "The staff model must accept a matching ten-character password.");
+autoInput.Password = "Staff!123"; autoInput.ConfirmPassword = autoInput.Password;
+Check(!Validator.TryValidateObject(autoInput, new ValidationContext(autoInput), [], true), "The staff model must reject a password shorter than ten characters.");
+Check(StaffIdentityFields.NormalizeMobile("98765 43210") == "+919876543210" && StaffIdentityFields.NormalizeMobile("+91-98765-43210") == "+919876543210", "Equivalent mobile number formats must share one canonical value.");
+try { StaffIdentityFields.NormalizeMobile(null); throw new Exception("A missing phone number was accepted."); } catch (StaffValidationException) { Check(true, "Missing mobile rejected before persistence."); }
 foreach (var authenticated in new[] { false, true })
 foreach (var active in new[] { false, true })
 foreach (var admin in new[] { false, true })
@@ -47,7 +56,7 @@ var connection = new SqlConnectionStringBuilder { DataSource = Environment.Machi
 var services = new ServiceCollection();
 services.AddLogging(); services.AddDataProtection().UseEphemeralDataProtectionProvider(); services.AddHttpContextAccessor(); services.AddAntiforgery();
 services.AddDbContext<ApplicationDbContext>(o => o.UseSqlServer(connection, s => s.CommandTimeout(15)));
-services.AddIdentityCore<ApplicationUser>(o => { o.Password.RequiredLength = 12; o.User.RequireUniqueEmail = true; })
+services.AddIdentityCore<ApplicationUser>(o => { o.Password.RequiredLength = 10; o.User.RequireUniqueEmail = true; })
     .AddRoles<IdentityRole>().AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
 services.AddScoped<AuditService>(); services.AddScoped<PermissionService>(); services.AddScoped<StaffRepository>(); services.AddScoped<StaffManagementService>(); services.AddScoped<StaffAccessService>(); services.AddScoped<ICampusScopeService, CampusScopeService>();
 using var provider = services.BuildServiceProvider();
@@ -58,6 +67,8 @@ try
 {
     Console.WriteLine("Testing isolated SQL database: " + databaseName);
     await db.GetService<IMigrator>().MigrateAsync("20260804000700_RepairMarkScorePrecision");
+    // Reproduce the deployed Identity columns before testing legacy staff import.
+    await db.Database.ExecuteSqlRawAsync("ALTER TABLE dbo.AspNetUsers ADD PublicUserId nvarchar(40) NULL, NormalizedMobileNumber nvarchar(16) NULL;");
     var users = sp.GetRequiredService<UserManager<ApplicationUser>>();
     var roles = sp.GetRequiredService<RoleManager<IdentityRole>>();
     foreach (var legacyRole in new[] { "Librarian", "Accountant", "Admin" })
@@ -72,12 +83,39 @@ try
     await users.AddToRoleAsync(legacyWithoutProfile, "Accountant");
     await db.SaveChangesAsync();
     await db.Database.MigrateAsync();
+    // Reproduce deployed Identity tables that have enabled audit triggers.
+    // Account creation, MFA lockout counters and successful-login updates must
+    // remain compatible without disabling those triggers.
+    await db.Database.ExecuteSqlRawAsync("""
+        CREATE TRIGGER [dbo].[TR_StaffTest_AspNetUsers] ON [dbo].[AspNetUsers]
+        AFTER INSERT, UPDATE AS
+        BEGIN
+            SET NOCOUNT ON;
+            IF EXISTS(SELECT 1 FROM inserted i LEFT JOIN deleted d ON d.Id=i.Id WHERE d.Id IS NULL AND NULLIF(i.PublicUserId,N'') IS NULL)
+                THROW 51001, 'New users require a generated user ID.', 1;
+            IF EXISTS(SELECT 1 FROM inserted i LEFT JOIN deleted d ON d.Id=i.Id WHERE d.Id IS NULL AND i.NormalizedMobileNumber IS NULL)
+                THROW 51003, 'Enter a valid mobile number before saving the account.', 1;
+        END;
+        """);
+    await db.Database.ExecuteSqlRawAsync("""
+        CREATE TRIGGER [dbo].[TR_StaffTest_EmployeeProfiles] ON [dbo].[EmployeeProfiles]
+        AFTER INSERT, UPDATE AS
+        BEGIN
+            SET NOCOUNT ON;
+            IF EXISTS(SELECT 1 FROM inserted i LEFT JOIN deleted d ON d.Id=i.Id JOIN dbo.AspNetUsers u ON u.Id=i.UserId WHERE d.Id IS NULL AND i.EmployeeNumber<>u.PublicUserId)
+                THROW 51001, 'New employees must use the generated user ID as their employee number.', 1;
+        END;
+        """);
+    legacy.LastLoginUtc = DateTime.UtcNow;
+    Check((await users.UpdateAsync(legacy)).Succeeded, "Identity successful-login updates must work with an enabled AspNetUsers trigger.");
+    Check((await users.AccessFailedAsync(legacy)).Succeeded, "Identity MFA failure updates must work with an enabled AspNetUsers trigger.");
+    Check((await users.ResetAccessFailedCountAsync(legacy)).Succeeded, "Identity MFA success updates must work with an enabled AspNetUsers trigger.");
     Check(await db.StaffMembers.AnyAsync(s => s.EmployeeProfile.UserId == legacy.Id && s.EmployeeProfile.EmployeeNumber == "LEGACY-001" && s.PrimaryRole == "Librarian"), "Migration must import existing employee profiles without replacing their IDs.");
     Check(await db.StaffMembers.AnyAsync(s => s.EmployeeProfile.UserId == legacyWithoutProfile.Id && s.PrimaryRole == "Accountant"), "Migration must create an employment profile for an existing staff account without one.");
     Check(await users.CheckPasswordAsync(legacy, legacyPassword), "Migration must preserve legacy password hashes.");
     foreach (var role in StaffWorkspaceCatalog.All.Select(w => w.Role).Append("Admin"))
         if (!await roles.RoleExistsAsync(role)) await roles.CreateAsync(new IdentityRole(role));
-    var admin = new ApplicationUser { FullName = "Test Administrator", Email = "admin@test.invalid", UserName = "test-admin" };
+    var admin = new ApplicationUser { FullName = "Test Administrator", Email = "admin@test.invalid", UserName = "test-admin", PublicUserId = "ADM-TEST", PhoneNumber = "8999999999" };
     Check((await users.CreateAsync(admin, "Test!" + Guid.NewGuid().ToString("N") + "1a")).Succeeded, "Administrator creation failed.");
     await users.AddToRoleAsync(admin, "Admin");
     var institution = new Institution { Name = "Isolated staff test institution", Code = "STAFFTEST" };
@@ -108,13 +146,23 @@ try
     var service = sp.GetRequiredService<StaffManagementService>();
     var repository = sp.GetRequiredService<StaffRepository>();
     var access = sp.GetRequiredService<StaffAccessService>();
-    StaffInput Input(string role, string tag) => new() { FullName = "Test " + role, Email = tag + "@test.invalid", EmployeeId = "TEST-" + tag, Username = tag, Role = role, JoiningDate = DateTime.Today.AddDays(-1), Password = "Initial!" + Guid.NewGuid().ToString("N") + "1a", IsActive = true };
+    var phonesByTag = new Dictionary<string, string>();
+    string StaffPhone(string tag) { if (!phonesByTag.ContainsKey(tag)) phonesByTag[tag] = (9000000000L + phonesByTag.Count).ToString(); return phonesByTag[tag]; }
+    StaffInput Input(string role, string tag) => new() { FullName = "Test " + role, Email = tag + "@test.invalid", Phone = StaffPhone(tag), Role = role, JoiningDate = DateTime.Today.AddDays(-1), Password = "Staff!1234", IsActive = true };
     var created = new List<int>();
+    var generatedIds = new HashSet<string>();
+    var generatedUsernames = new HashSet<string>();
     foreach (var workspace in StaffWorkspaceCatalog.All)
     {
         var input = Input(workspace.Role, workspace.Key); input.ConfirmPassword = input.Password;
+        if (workspace.Key == "librarian") { input.EmployeeId = "PROVIDED-ID"; input.Username = "provided-username"; }
         var id = await service.SaveAsync(null, input, admin.Id); created.Add(id);
         var staff = (await repository.FindAsync(id))!;
+        Check(staff.EmployeeProfile.EmployeeNumber.StartsWith("EMP-") && generatedIds.Add(staff.EmployeeProfile.EmployeeNumber), "Every staff account must receive a distinct generated employee ID.");
+        Check(staff.EmployeeProfile.User.UserName!.StartsWith("staff.") && generatedUsernames.Add(staff.EmployeeProfile.User.UserName), "Every staff account must receive a distinct generated username.");
+        Check(!string.IsNullOrEmpty(staff.EmployeeProfile.User.PublicUserId) && staff.EmployeeProfile.User.NormalizedMobileNumber == StaffIdentityFields.NormalizeMobile(input.Phone), "Staff creation must supply the user ID and canonical phone required by the deployed identity guard.");
+        Check(staff.EmployeeProfile.EmployeeNumber == staff.EmployeeProfile.User.PublicUserId, "The employee number must match the generated user ID required by the employee guard.");
+        Check(await users.FindByNameAsync(staff.EmployeeProfile.User.UserName) != null, "The generated username must resolve through Identity for sign-in.");
         Check(staff.PrimaryRole == workspace.Role && (await users.GetRolesAsync(staff.EmployeeProfile.User)).SequenceEqual(new[] { workspace.Role }), "Staff must have exactly one primary Identity role.");
         Check(staff.EmployeeProfile.User.MustChangePassword, "Initial password rotation must be required.");
         Check(await db.UserCampusMemberships.AnyAsync(m => m.UserId == staff.EmployeeProfile.UserId && m.CampusId == campus.Id && m.IsActive), "New staff must inherit their creator's default campus.");
@@ -124,6 +172,11 @@ try
         foreach (var other in StaffWorkspaceCatalog.All) Check(await access.AllowedAsync(principal, other.Key) == (other.Key == workspace.Key), "Stored authorization must isolate all five roles.");
     }
     var first = (await repository.FindAsync(created[0]))!;
+    var duplicatePhone = Input("Librarian", "duplicate-mobile");
+    duplicatePhone.Phone = StaffIdentityFields.NormalizeMobile(first.EmployeeProfile.User.PhoneNumber);
+    duplicatePhone.ConfirmPassword = duplicatePhone.Password;
+    try { await service.SaveAsync(null, duplicatePhone, admin.Id); throw new Exception("A duplicate canonical mobile was accepted."); }
+    catch (StaffValidationException ex) { Check(ex.Message.Contains("mobile number is already registered") && !await db.Users.AnyAsync(u => u.Email == duplicatePhone.Email), "Duplicate mobile formats must receive a clear validation error without creating a partial account."); }
     var firstUser = first.EmployeeProfile.User;
     var grant = await db.Permissions.SingleAsync(p => p.Key == "workspace.accountant");
     db.UserPermissions.Add(new UserPermission { UserId = firstUser.Id, PermissionId = grant.Id, IsGranted = true }); await db.SaveChangesAsync();
@@ -133,9 +186,13 @@ try
     await db.SaveChangesAsync();
     Check(!await access.CanManageAsync(Principal(firstUser, "Librarian"), "librarian"), "An action-level denial must override the primary role's module permission.");
     var update = Input("Registrar", "librarian"); update.Password = null; update.ConfirmPassword = null; update.RowVersion = Convert.ToBase64String(first.RowVersion);
+    var originalEmployeeId = first.EmployeeProfile.EmployeeNumber;
+    var originalUsername = firstUser.UserName;
+    update.EmployeeId = "FORGED-ID"; update.Username = "forged-username";
     var oldStamp = firstUser.SecurityStamp;
     await service.SaveAsync(first.Id, update, admin.Id);
     var changed = (await repository.FindAsync(first.Id))!;
+    Check(changed.EmployeeProfile.EmployeeNumber == originalEmployeeId && changed.EmployeeProfile.User.UserName == originalUsername, "Staff edits must preserve the assigned identifiers even when a caller supplies replacements.");
     Check((await users.GetRolesAsync(changed.EmployeeProfile.User)).SequenceEqual(new[] { "Registrar" }), "Role changes must remove old roles.");
     Check(!await db.UserPermissions.AnyAsync(p => p.UserId == firstUser.Id), "Role changes must clear previous permission overrides.");
     Check(changed.EmployeeProfile.User.SecurityStamp != oldStamp, "Role changes must revoke existing Identity sessions.");
@@ -171,7 +228,7 @@ try
     Check(await resources.Save("transport", "fuel", Json(new { transportVehicleId = vehicleId, filledOn = DateTime.Today, litres = 30.5m, unitPrice = 95m, odometerKm = 1000 })) is OkResult, "Fuel entry with calculated cost failed.");
     Check(await resources.Save("transport", "fuel", Json(new { transportVehicleId = vehicleId, filledOn = DateTime.Today, litres = 0.001m, unitPrice = 95m, odometerKm = 1001 })) is BadRequestObjectResult, "Sub-cent precision must be rejected before SQL rounding can produce a zero-value fuel record.");
 
-    var studentUser = new ApplicationUser { FullName = "Test Resident", Email = "resident@test.invalid", UserName = "resident" };
+    var studentUser = new ApplicationUser { FullName = "Test Resident", Email = "resident@test.invalid", UserName = "resident", PublicUserId = "STU-TEST", PhoneNumber = "8999999998" };
     await users.CreateAsync(studentUser, "Student!" + Guid.NewGuid().ToString("N") + "1a");
     var teacher = new Teacher { FullName = "Fixture teacher", UserId = admin.Id, Email = "teacher@test.invalid" };
     var fixtureClass = new Class { Name = "Fixture class", Teacher = teacher };

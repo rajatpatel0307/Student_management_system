@@ -76,13 +76,20 @@ public sealed class StaffController(StaffAccessService access, ApplicationDbCont
                         return RedirectToAction(nameof(Edit), new { id = savedId });
                     }
                 }
-                TempData["Success"] = id.HasValue ? "Staff profile updated." : "Staff account created. The staff member must change their password at first login.";
-                return RedirectToAction(nameof(Index));
+                TempData["Success"] = id.HasValue ? "Staff profile updated." : "Staff account created. Employee ID and username were generated automatically. The staff member must change their password at first login.";
+                return id.HasValue ? RedirectToAction(nameof(Index)) : RedirectToAction(nameof(Details), new { id = savedId });
             }
             catch (StaffValidationException ex) { ModelState.AddModelError("", ex.Message); }
             catch (DbUpdateConcurrencyException) { ModelState.AddModelError("", "This record changed. Reload the staff profile before editing again."); }
-            catch (DbUpdateException) { ModelState.AddModelError("", "An account or employee ID already exists. Check the details and try again."); }
+            catch (DbUpdateException ex) { ModelState.AddModelError("", StaffIdentityFields.SaveError(ex)); }
             catch (KeyNotFoundException) { return NotFound(); }
+        }
+        if (id.HasValue)
+        {
+            var existing = await repository.FindAsync(id.Value);
+            if (existing == null) return NotFound();
+            input.EmployeeId = existing.EmployeeProfile.EmployeeNumber;
+            input.Username = existing.EmployeeProfile.User.UserName;
         }
         return View("Edit", new StaffEditorModel { Id = id, Input = input, Departments = await db.Departments.AsNoTracking().Where(d => !d.IsArchived).OrderBy(d => d.Name).ToListAsync() });
     }

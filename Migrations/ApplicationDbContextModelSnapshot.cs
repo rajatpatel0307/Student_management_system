@@ -67,6 +67,16 @@ namespace Student_Management_System.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<string>("NormalizedMobileNumber")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasComputedColumnSql("[dbo].[NormalizeUserMobile]([PhoneNumber])", true);
+
+                    b.Property<string>("PublicUserId")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<string>("NormalizedUserName")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -104,7 +114,7 @@ namespace Student_Management_System.Migrations
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
-                    b.ToTable("AspNetUsers", (string)null);
+                    b.ToTable("AspNetUsers", (string)null, table => table.UseSqlOutputClause(false));
                 });
 
             modelBuilder.Entity("Attendance", b =>
@@ -2186,7 +2196,7 @@ namespace Student_Management_System.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("EmployeeProfiles");
+                    b.ToTable("EmployeeProfiles", table => table.UseSqlOutputClause(false));
                 });
 
             modelBuilder.Entity("Student_Management_System.Models.Fee", b =>

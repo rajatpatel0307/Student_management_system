@@ -29,21 +29,21 @@ public sealed class StaffManagementService(
             throw new StaffValidationException("Date of birth must be valid and precede joining date.");
         if (input.DepartmentId.HasValue && !await db.Departments.AnyAsync(d => d.Id == input.DepartmentId && !d.IsArchived))
             throw new StaffValidationException("Select an active department.");
-        if (string.IsNullOrWhiteSpace(input.FullName) || string.IsNullOrWhiteSpace(input.Username) || string.IsNullOrWhiteSpace(input.EmployeeId))
-            throw new StaffValidationException("Name, username and employee ID are required.");
-        var employeeId = input.EmployeeId.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(input.FullName))
+            throw new StaffValidationException("Full name is required.");
         var staff = id.HasValue ? await repository.FindAsync(id.Value) : null;
         if (id.HasValue && staff == null) throw new KeyNotFoundException();
         var user = staff?.EmployeeProfile.User;
+        var phone = input.Phone?.Trim();
+        var phoneChanged = staff == null || !string.Equals(user?.PhoneNumber, phone, StringComparison.Ordinal);
+        var normalizedMobile = phoneChanged ? StaffIdentityFields.NormalizeMobile(phone) : user?.NormalizedMobileNumber;
+        if (phoneChanged && await db.Users.AnyAsync(u => u.NormalizedMobileNumber == normalizedMobile && u.Id != (user == null ? "" : user.Id)))
+            throw new StaffValidationException("This mobile number is already registered. Please use a different mobile number.");
         if (user != null && (await users.GetRolesAsync(user)).Any(r => !StaffWorkspaceCatalog.All.Any(w => w.Role == r)))
             throw new StaffValidationException("This account has protected roles and cannot be managed here.");
-        var existingEmployeeProfileId = staff?.EmployeeProfileId ?? 0;
-        if (await db.EmployeeProfiles.AnyAsync(e => e.EmployeeNumber == employeeId && e.Id != existingEmployeeProfileId))
-            throw new StaffValidationException("Employee ID is already in use.");
         var emailOwner = await users.FindByEmailAsync(input.Email.Trim());
-        var nameOwner = await users.FindByNameAsync(input.Username.Trim());
-        if ((emailOwner != null && emailOwner.Id != user?.Id) || (nameOwner != null && nameOwner.Id != user?.Id))
-            throw new StaffValidationException("Email or username is already in use.");
+        if (emailOwner != null && emailOwner.Id != user?.Id)
+            throw new StaffValidationException("Email is already in use.");
         if (staff == null && (string.IsNullOrWhiteSpace(input.Password) || input.Password != input.ConfirmPassword))
             throw new StaffValidationException("A matching initial password is required.");
         if (staff != null)
@@ -67,7 +67,8 @@ public sealed class StaffManagementService(
             await using var transaction = await db.Database.BeginTransactionAsync();
             if (user == null)
             {
-                user = new ApplicationUser { FullName = input.FullName.Trim(), Email = input.Email.Trim(), UserName = input.Username.Trim(), MustChangePassword = true };
+                var identifiers = await GenerateIdentifiersAsync();
+                user = new ApplicationUser { FullName = input.FullName.Trim(), Email = input.Email.Trim(), UserName = identifiers.Username, PublicUserId = identifiers.EmployeeId, PhoneNumber = normalizedMobile, MustChangePassword = true };
                 Ensure(await users.CreateAsync(user, input.Password!));
                 var campusId = await db.UserCampusMemberships.Where(m => m.UserId == actor && m.IsActive)
                     .OrderByDescending(m => m.IsDefault).Select(m => (int?)m.CampusId).FirstOrDefaultAsync();
@@ -76,7 +77,7 @@ public sealed class StaffManagementService(
                     campusId = await db.Campuses.Where(c => c.IsActive && c.Institution.IsActive).OrderBy(c => c.Id).Select(c => (int?)c.Id).FirstOrDefaultAsync();
                 if (campusId.HasValue)
                     db.UserCampusMemberships.Add(new UserCampusMembership { UserId = user.Id, CampusId = campusId.Value, IsDefault = true, GrantedByUserId = actor });
-                var employee = new EmployeeProfile { UserId = user.Id };
+                var employee = new EmployeeProfile { UserId = user.Id, EmployeeNumber = identifiers.EmployeeId };
                 db.EmployeeProfiles.Add(employee);
                 staff = new StaffMember { EmployeeProfile = employee, CreatedByUserId = actor };
                 db.StaffMembers.Add(staff);
@@ -84,8 +85,11 @@ public sealed class StaffManagementService(
             user.FullName = input.FullName.Trim();
             if (!string.Equals(user.Email, input.Email.Trim(), StringComparison.OrdinalIgnoreCase)) user.EmailConfirmed = false;
             user.Email = input.Email.Trim();
-            user.UserName = input.Username.Trim();
-            user.PhoneNumber = input.Phone?.Trim();
+            user.PhoneNumber = phoneChanged ? normalizedMobile : phone;
+            if (phoneChanged)
+            {
+                user.PhoneNumberConfirmed = false;
+            }
             user.IsActive = input.IsActive;
             Ensure(await users.UpdateAsync(user));
             var currentRoles = await users.GetRolesAsync(user);
@@ -96,7 +100,6 @@ public sealed class StaffManagementService(
                 db.UserPermissions.RemoveRange(await db.UserPermissions.Where(p => p.UserId == user.Id).ToListAsync());
             Ensure(await users.UpdateSecurityStampAsync(user));
             var employment = staff!.EmployeeProfile;
-            employment.EmployeeNumber = employeeId;
             employment.JobTitle = workspace.Title;
             employment.JoinedOn = input.JoiningDate.Date;
             employment.DepartmentId = input.DepartmentId;
@@ -115,6 +118,23 @@ public sealed class StaffManagementService(
             resultId = staff.Id;
         });
         return resultId;
+    }
+
+    private async Task<(string EmployeeId, string Username)> GenerateIdentifiersAsync()
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var token = Guid.NewGuid().ToString("N")[..12];
+            var employeeId = "EMP-" + token.ToUpperInvariant();
+            var username = "staff." + token;
+            // Include inactive/deleted staff and all Identity accounts. Database
+            // unique indexes also protect simultaneous account creation.
+            if (!await db.EmployeeProfiles.AnyAsync(e => e.EmployeeNumber == employeeId)
+                && !await db.Users.AnyAsync(u => u.PublicUserId == employeeId)
+                && await users.FindByNameAsync(username) == null)
+                return (employeeId, username);
+        }
+        throw new StaffValidationException("Could not allocate staff identifiers. Please try again.");
     }
 
     private static void Ensure(IdentityResult result)

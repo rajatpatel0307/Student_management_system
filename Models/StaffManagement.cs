@@ -51,8 +51,9 @@ public sealed class StaffInput
     [Required, StringLength(160)] public string FullName { get; set; } = "";
     [Required, EmailAddress, StringLength(256)] public string Email { get; set; } = "";
     [Phone, StringLength(30)] public string? Phone { get; set; }
-    [Required, StringLength(40)] public string EmployeeId { get; set; } = "";
-    [Required, StringLength(256)] public string Username { get; set; } = "";
+    // Optional for older API clients; these values are assigned by the service.
+    [StringLength(40)] public string? EmployeeId { get; set; }
+    [StringLength(256)] public string? Username { get; set; }
     [Required, StringLength(40)] public string Role { get; set; } = "";
     public int? DepartmentId { get; set; }
     public DateTime JoiningDate { get; set; }
@@ -62,7 +63,7 @@ public sealed class StaffInput
     [StringLength(200)] public string? EmergencyContact { get; set; }
     [StringLength(2000)] public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
-    [StringLength(128, MinimumLength = 12)] public string? Password { get; set; }
+    [StringLength(128, MinimumLength = 10)] public string? Password { get; set; }
     [StringLength(128), Compare(nameof(Password))] public string? ConfirmPassword { get; set; }
     [StringLength(100)] public string? RowVersion { get; set; }
 }

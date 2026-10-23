@@ -10,7 +10,8 @@ The corrected local instance is running at **https://localhost:5292/Staff**.
 Sign in with an existing administrator account to open the directory.
 
 - Admin Dashboard and Super Admin Dashboard both have a **Manage staff** card.
-- The administration sidebar contains **Staff Management**.
+- **Manage staff** is the first menu item in the Admin and Super Admin sidebars,
+  including when an administrator opens a role workspace.
 - Directory: `/Staff` (also `/Staff/Index`).
 - Add staff: `/Staff/Create`.
 - View and manage an account: `/Staff/Details/{id}`.
@@ -34,14 +35,42 @@ server-rendered Razor directory/forms and the same shared layout as other pages.
 The dashboards and operational tables use small plain-JavaScript requests to the
 existing protected staff APIs.
 
+The two-factor sign-in exception was caused by SQL Server rejecting EF's bare
+`OUTPUT` clause on the trigger-enabled `AspNetUsers` table. The Identity mapping
+now uses `UseSqlOutputClause(false)` for that table. Existing database triggers,
+MFA checks and passwords remain enabled; no database migration is required for
+this mapping correction. Regression checks cover Identity login timestamps and
+MFA failure-counter updates with an enabled trigger in the disposable test database.
+
+Staff creation supplies the existing Identity guard's generated `PublicUserId`
+and a canonical `PhoneNumber` before the first user insert. SQL Server computes
+`NormalizedMobileNumber`; EF maps it as a persisted computed property and never
+includes it in INSERT or UPDATE assignments. New staff need
+a mobile number; 10-digit local numbers are normalized with `+91`, and international
+numbers accept an explicit country code. Duplicate mobile numbers receive a clear
+validation error. Existing guard triggers and identifier reservations are preserved.
+The additive `20261024000100_StaffIdentityCompatibility` migration adopts these
+columns if they already exist, or adds nullable columns on a fresh database.
+`20261024000200_StaffComputedMobileMapping` reconciles those fresh-database columns
+with the deployed computed-column schema. It preserves the existing normalization
+function, computed column and indexes, and creates the function on a fresh database.
+Create/reset staff passwords now require **10–128 characters**, with the existing
+uppercase, lowercase, digit and symbol rules. Database errors are no longer all
+reported as duplicate employee IDs.
+The generated Employee ID is also the account's `PublicUserId`, satisfying the
+employee-number guard. The employee-profile mapping disables bare `OUTPUT` clauses
+as well, so both existing Identity and employee triggers can execute safely.
+
 Development startup now honors the existing
-`DatabaseBootstrap:ApplyMigrationsOnStartup=true` setting for **only** these two
+`DatabaseBootstrap:ApplyMigrationsOnStartup=true` setting for **only** these staff
 additive migrations when they are the only pending migrations:
 
 1. `20261023122648_StaffManagementWorkspaces`
 2. `20261023124049_StaffOperationalRegisters`
+3. `20261024000100_StaffIdentityCompatibility`
+4. `20261024000200_StaffComputedMobileMapping`
 
-Both were applied successfully during the corrected local launch. The application
+The staff migrations were applied during the corrected local launches. The application
 reported successful startup and `/health` returned HTTP 200. No existing passwords
 were changed. In Production, migrations remain a controlled deployment step:
 
@@ -60,6 +89,11 @@ If other migrations are pending, Development startup does not silently apply the
 - Server-rendered staff directory: search, role/status filters, paging and CSV export.
 - Full native create/edit form, private profile photos, department, employment,
   contact, demographic, emergency and notes fields.
+- Employee IDs (`EMP-` plus a generated token) and login usernames (`staff.` plus
+  the same token) are assigned on the server when creating staff. Identifier
+  uniqueness is checked against existing records and protected by unique indexes.
+  The create form requires neither field; creation opens the saved profile showing
+  both. Identifiers are read-only and preserved on edits, including legacy accounts.
 - Native staff detail page with activation/deactivation, soft deletion, password
   reset, permission controls, login history and activity history.
 - One primary Identity role per managed account. `HostelManager` is displayed as
@@ -103,8 +137,8 @@ The previous frontend source and generated bundle were moved to the ignored
 `.build/retired-staff-react` backup. They are not part of the active application.
 
 ```powershell
-dotnet build StaffTests/StaffTests.csproj -o .build/staff-native-ready
-dotnet .build/staff-native-ready/StaffTests.dll --integration
+dotnet build StaffTests/StaffTests.csproj -o .build/staff-computed-mobile
+dotnet .build/staff-computed-mobile/StaffTests.dll --integration
 node --test Tests/StaffCache.test.mjs Tests/StaffNative.test.mjs
 ```
 
@@ -112,8 +146,11 @@ The integration suite creates and cleans up only its own disposable SQL Express
 database. Its checks cover legacy staff migration, Identity/RBAC, operational registers,
 authenticated HTTP rendering of the actual Razor directory, staff form, all five
 dashboards and role pages, and forbidden cross-role navigation. The updated suite
-compiled successfully, but execution was blocked by Windows Application Control
-(0x800711C7), so the new authenticated rendering checks have not run.
+ran successfully with **227 passing assertions**, including actual staff creation
+with ten-character passwords, persisted computed mobile values, enabled Identity
+and employee-number triggers, and authenticated native Razor rendering. Its test
+database was removed after the run. Earlier test execution was blocked by Windows
+Application Control; the latest normal elevated test invocation completed successfully.
 Fourteen JavaScript tests passed, validating native register schemas and private
 response cache exclusion. Live HTTPS checks confirmed the staff routes redirect
 unauthenticated requests to login, static assets load, and database health returns 200.

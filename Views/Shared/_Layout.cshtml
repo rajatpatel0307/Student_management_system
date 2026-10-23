@@ -115,6 +115,15 @@
             </div>
 
             <nav class="sidebar-nav">
+                @if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin"))
+                {
+                    <div class="nav-group">
+                        <p class="nav-label">Staff administration</p>
+                        <a class="nav-link @IsActive("Staff")" href="/Staff" title="Manage staff">
+                            <i class="fa-solid fa-user-shield" aria-hidden="true"></i><span>Manage staff</span>
+                        </a>
+                    </div>
+                }
                 @{
                     var operationalWorkspace = ViewData["StaffWorkspace"] as StaffWorkspace
                         ?? StaffWorkspaceCatalog.All.FirstOrDefault(w => User.IsInRole(w.Role));
@@ -168,9 +177,6 @@
                 {
                     <div class="nav-group">
                         <p class="nav-label">Administration</p>
-                        <a class="nav-link @IsActive("Staff")" href="/Staff">
-                            <i class="fa-solid fa-user-shield"></i><span>Staff Management</span>
-                        </a>
                         <a class="nav-link @IsActive("Dashboard")" asp-controller="Dashboard" asp-action="Index">
                             <i class="fa-solid fa-table-cells-large"></i><span>Dashboard</span>
                         </a>

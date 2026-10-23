@@ -5,7 +5,7 @@ namespace Student_Management_System.Services;
 
 public static class StaffModuleSetup
 {
-    public static readonly string[] Migrations = ["20261023122648_StaffManagementWorkspaces", "20261023124049_StaffOperationalRegisters"];
+    public static readonly string[] Migrations = ["20261023122648_StaffManagementWorkspaces", "20261023124049_StaffOperationalRegisters", "20261024000100_StaffIdentityCompatibility", "20261024000200_StaffComputedMobileMapping"];
 
     // Called only on explicitly configured Development startup. Never apply
     // unrelated migrations or create/reset user credentials in this repair.

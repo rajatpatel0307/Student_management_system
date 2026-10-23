@@ -160,6 +160,14 @@ namespace Student_Management_System.Models
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            // Identity updates during MFA and login must work with the existing
+            // AspNetUsers triggers. SQL Server disallows bare OUTPUT with triggers.
+            modelBuilder.Entity<ApplicationUser>()
+                .ToTable("AspNetUsers", table => table.UseSqlOutputClause(false));
+            modelBuilder.Entity<ApplicationUser>().Property(u => u.NormalizedMobileNumber)
+                .HasComputedColumnSql("[dbo].[NormalizeUserMobile]([PhoneNumber])", stored: true);
+            modelBuilder.Entity<EmployeeProfile>()
+                .ToTable("EmployeeProfiles", table => table.UseSqlOutputClause(false));
             modelBuilder.Entity<RegistrarCertificate>().HasIndex(c => c.CertificateNumber).IsUnique().HasFilter("[CertificateNumber] IS NOT NULL");
             modelBuilder.Entity<RegistrarCertificate>().HasIndex(c => new { c.CampusId, c.Status, c.CertificateType });
             modelBuilder.Entity<RegistrarCertificate>().HasOne(c => c.Student).WithMany().HasForeignKey(c => c.StudentId).OnDelete(DeleteBehavior.Restrict);

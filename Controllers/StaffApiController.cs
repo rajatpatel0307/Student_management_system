@@ -61,7 +61,7 @@ public sealed class StaffApiController(ApplicationDbContext db, StaffRepository 
         catch (StaffValidationException ex) { return BadRequest(new { message = ex.Message }); }
         catch (KeyNotFoundException) { return NotFound(); }
         catch (DbUpdateConcurrencyException) { return Conflict(new { message = "This record changed. Refresh and try again." }); }
-        catch (DbUpdateException) { return Conflict(new { message = "An account or employee ID already exists. Refresh and try again." }); }
+        catch (DbUpdateException ex) { return Conflict(new { message = StaffIdentityFields.SaveError(ex) }); }
     }
 
     [HttpPost("{id:int}/status"), ValidateAntiForgeryToken]
@@ -95,8 +95,8 @@ public sealed class StaffApiController(ApplicationDbContext db, StaffRepository 
     [HttpPost("{id:int}/password"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Password(int id, [FromBody] StaffPasswordInput input)
     {
-        if (string.IsNullOrWhiteSpace(input.Password) || input.Password.Length is < 12 or > 128 || input.Password != input.ConfirmPassword)
-            return BadRequest(new { message = "Provide matching passwords of at least 12 characters." });
+        if (string.IsNullOrWhiteSpace(input.Password) || input.Password.Length is < 10 or > 128 || input.Password != input.ConfirmPassword)
+            return BadRequest(new { message = "Provide matching passwords of 10 to 128 characters." });
         var staff = await repository.FindAsync(id);
         if (staff == null) return NotFound();
         var user = staff.EmployeeProfile.User;
