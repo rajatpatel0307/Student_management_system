@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Security.Claims;
@@ -24,6 +24,7 @@ namespace Student_Management_System.Controllers
         private readonly ILogger<StudentsController> _logger;
         private readonly IResultService _results;
         private readonly IStudentAccountService _accounts;
+        private readonly ICampusScopeService _campusScope;
 
         public StudentsController(
             ApplicationDbContext context,
@@ -32,7 +33,8 @@ namespace Student_Management_System.Controllers
             AuditService audit,
             ILogger<StudentsController> logger,
             IResultService results,
-            IStudentAccountService accounts)
+            IStudentAccountService accounts,
+            ICampusScopeService campusScope)
         {
             _context = context;
             _userManager = userManager;
@@ -41,6 +43,7 @@ namespace Student_Management_System.Controllers
             _logger = logger;
             _results = results;
             _accounts = accounts;
+            _campusScope = campusScope;
         }
 
         // ================= INDEX =================
@@ -48,6 +51,40 @@ namespace Student_Management_System.Controllers
         public async Task<IActionResult> Index([FromQuery] ListQuery request, CancellationToken cancellationToken)
         {
             request.Normalize();
+            var query = await BuildDirectoryQueryAsync(request, cancellationToken);
+            if (query == null) return Forbid();
+
+            var filteredIds = query.Select(s => s.Id);
+            var attendanceRates = _context.Attendances.AsNoTracking()
+                .Where(a => filteredIds.Contains(a.StudentId))
+                .GroupBy(a => a.StudentId)
+                .Select(g => new { Total = g.Count(), Present = g.Count(a => a.Status == "Present") });
+            var now = DateTimeOffset.UtcNow;
+            ViewBag.Stats = new[]
+            {
+                new StatCardViewModel("Total students", (await query.CountAsync(cancellationToken)).ToString("N0"), "Across the current filters", "fa-solid fa-user-graduate"),
+                new StatCardViewModel("Active accounts", (await query.CountAsync(s => s.User != null && s.User.IsActive && (!s.User.LockoutEnd.HasValue || s.User.LockoutEnd <= now), cancellationToken)).ToString("N0"), "Enabled and not locked", "fa-solid fa-circle-check", "success", "status", "active"),
+                new StatCardViewModel("Inactive accounts", (await query.CountAsync(s => s.User == null || !s.User.IsActive || (s.User.LockoutEnd.HasValue && s.User.LockoutEnd > now), cancellationToken)).ToString("N0"), "Disabled, locked or not linked", "fa-solid fa-user-lock", "warning", "status", "inactive"),
+                new StatCardViewModel("Low attendance", (await attendanceRates.CountAsync(x => x.Total > 0 && (x.Present * 100.0 / x.Total) < 75, cancellationToken)).ToString("N0"), "Below the 75% threshold", "fa-solid fa-triangle-exclamation", "danger", "status", "low-attendance")
+            };
+            var hodView = User.IsInRole("HOD");
+            var departmentId = hodView
+                ? await GetHodDepartmentAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), cancellationToken) : null;
+            ViewBag.Departments = await _context.Departments.AsNoTracking()
+                .Where(d => !hodView || d.Id == departmentId).OrderBy(d => d.Name).ToListAsync(cancellationToken);
+            ViewBag.Classes = await _context.Classes.AsNoTracking()
+                .Where(c => !hodView || c.DepartmentId == departmentId).OrderBy(c => c.Name).ToListAsync(cancellationToken);
+            ViewBag.Sections = await _context.Sections.AsNoTracking()
+                .Where(s => !hodView || s.Class.DepartmentId == departmentId).OrderBy(s => s.Name).ToListAsync(cancellationToken);
+            ViewBag.Semesters = await _context.Semesters.AsNoTracking()
+                .Where(s => !hodView || s.DepartmentId == departmentId).OrderBy(s => s.Number).ToListAsync(cancellationToken);
+
+            query = SortDirectory(query, request);
+            return View(await query.ToPagedResultAsync(request, cancellationToken));
+        }
+
+        private async Task<IQueryable<Student>?> BuildDirectoryQueryAsync(ListQuery request, CancellationToken cancellationToken)
+        {
             var query = _context.Students
                 .Include(s => s.Class)
                 .Include(s => s.Section)
@@ -60,15 +97,9 @@ namespace Student_Management_System.Controllers
             if (User.IsInRole("HOD"))
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                var departmentId = await _context.Teachers.Where(t => t.UserId == userId && t.TeacherType == TeacherType.HOD)
-                    .Select(t => t.DepartmentId).SingleOrDefaultAsync();
-                if (!departmentId.HasValue) return Forbid();
-                var campusIds = _context.UserCampusMemberships.AsNoTracking()
-                    .Where(m => m.UserId == userId && m.IsActive)
-                    .Select(m => m.CampusId);
-                query = query.Where(s => s.DepartmentId == departmentId &&
-                    s.UserId != null && _context.UserCampusMemberships.Any(m =>
-                        m.UserId == s.UserId && m.IsActive && campusIds.Contains(m.CampusId)));
+                var departmentId = await GetHodDepartmentAsync(userId, cancellationToken);
+                if (!departmentId.HasValue) return null;
+                query = StudentRecordScope.ForHod(_context, query, userId, departmentId.Value);
             }
             if (!string.IsNullOrWhiteSpace(request.Search))
             {
@@ -81,9 +112,9 @@ namespace Student_Management_System.Controllers
             if (request.SectionId.HasValue) query = query.Where(s => s.SectionId == request.SectionId);
             if (request.SemesterId.HasValue) query = query.Where(s => s.SemesterId == request.SemesterId);
             if (request.Status == "active")
-                query = query.Where(s => s.User != null && (!s.User.LockoutEnd.HasValue || s.User.LockoutEnd <= DateTimeOffset.UtcNow));
+                query = query.Where(s => s.User != null && s.User.IsActive && (!s.User.LockoutEnd.HasValue || s.User.LockoutEnd <= DateTimeOffset.UtcNow));
             else if (request.Status == "inactive")
-                query = query.Where(s => s.User == null || (s.User.LockoutEnd.HasValue && s.User.LockoutEnd > DateTimeOffset.UtcNow));
+                query = query.Where(s => s.User == null || !s.User.IsActive || (s.User.LockoutEnd.HasValue && s.User.LockoutEnd > DateTimeOffset.UtcNow));
             else if (request.Status == "unassigned")
                 query = query.Where(s => s.DepartmentId == null || s.SemesterId == null);
             else if (request.Status == "low-attendance")
@@ -95,36 +126,22 @@ namespace Student_Management_System.Controllers
                 query = query.Where(s => lowAttendanceStudentIds.Contains(s.Id));
             }
 
-            var filteredIds = query.Select(s => s.Id);
-            var attendanceRates = _context.Attendances.AsNoTracking()
-                .Where(a => filteredIds.Contains(a.StudentId))
-                .GroupBy(a => a.StudentId)
-                .Select(g => new { Total = g.Count(), Present = g.Count(a => a.Status == "Present") });
-            var now = DateTimeOffset.UtcNow;
-            ViewBag.Stats = new[]
-            {
-                new StatCardViewModel("Total students", (await query.CountAsync(cancellationToken)).ToString("N0"), "Across the current filters", "fa-solid fa-user-graduate"),
-                new StatCardViewModel("Active accounts", (await query.CountAsync(s => s.User != null && (!s.User.LockoutEnd.HasValue || s.User.LockoutEnd <= now), cancellationToken)).ToString("N0"), "Login is available", "fa-solid fa-circle-check", "success", "status", "active"),
-                new StatCardViewModel("Inactive accounts", (await query.CountAsync(s => s.User == null || (s.User.LockoutEnd.HasValue && s.User.LockoutEnd > now), cancellationToken)).ToString("N0"), "Locked or not linked", "fa-solid fa-user-lock", "warning", "status", "inactive"),
-                new StatCardViewModel("Low attendance", (await attendanceRates.CountAsync(x => x.Total > 0 && (x.Present * 100.0 / x.Total) < 75, cancellationToken)).ToString("N0"), "Below the 75% threshold", "fa-solid fa-triangle-exclamation", "danger", "status", "low-attendance")
-            };
-            ViewBag.Departments = await _context.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync(cancellationToken);
-            ViewBag.Classes = await _context.Classes.AsNoTracking().OrderBy(c => c.Name).ToListAsync(cancellationToken);
-            ViewBag.Sections = await _context.Sections.AsNoTracking().OrderBy(s => s.Name).ToListAsync(cancellationToken);
-            ViewBag.Semesters = await _context.Semesters.AsNoTracking().OrderBy(s => s.Number).ToListAsync(cancellationToken);
+            return query;
+        }
 
-            query = (request.Sort?.ToLowerInvariant(), request.Direction) switch
+        private static IQueryable<Student> SortDirectory(IQueryable<Student> query, ListQuery request)
+        {
+            return (request.Sort?.ToLowerInvariant(), request.Direction) switch
             {
-                ("email", "desc") => query.OrderByDescending(s => s.Email),
-                ("email", _) => query.OrderBy(s => s.Email),
-                ("class", "desc") => query.OrderByDescending(s => s.Class!.Name).ThenBy(s => s.FullName),
-                ("class", _) => query.OrderBy(s => s.Class!.Name).ThenBy(s => s.FullName),
-                ("department", "desc") => query.OrderByDescending(s => s.Department!.Name).ThenBy(s => s.FullName),
-                ("department", _) => query.OrderBy(s => s.Department!.Name).ThenBy(s => s.FullName),
-                ("name", "desc") => query.OrderByDescending(s => s.FullName),
-                _ => query.OrderBy(s => s.FullName)
+                ("email", "desc") => query.OrderByDescending(s => s.Email).ThenBy(s => s.Id),
+                ("email", _) => query.OrderBy(s => s.Email).ThenBy(s => s.Id),
+                ("class", "desc") => query.OrderByDescending(s => s.Class!.Name).ThenBy(s => s.FullName).ThenBy(s => s.Id),
+                ("class", _) => query.OrderBy(s => s.Class!.Name).ThenBy(s => s.FullName).ThenBy(s => s.Id),
+                ("department", "desc") => query.OrderByDescending(s => s.Department!.Name).ThenBy(s => s.FullName).ThenBy(s => s.Id),
+                ("department", _) => query.OrderBy(s => s.Department!.Name).ThenBy(s => s.FullName).ThenBy(s => s.Id),
+                ("name", "desc") => query.OrderByDescending(s => s.FullName).ThenBy(s => s.Id),
+                _ => query.OrderBy(s => s.FullName).ThenBy(s => s.Id)
             };
-            return View(await query.ToPagedResultAsync(request, cancellationToken));
         }
 
         // ================= DETAILS =================
@@ -345,11 +362,12 @@ namespace Student_Management_System.Controllers
             var student = await allowed.Include(s => s.Class).Include(s => s.Department)
                 .SingleOrDefaultAsync(cancellationToken);
             if (student == null) return NotFound();
-            var marks = await _context.Marks.AsNoTracking()
+            var marksQuery = _context.Marks.AsNoTracking()
                 .Include(m => m.Exam).Include(m => m.Subject)
                 .Where(m => m.StudentId == id && m.IsApproved &&
-                            m.Exam.Status == ExamLifecycle.Published)
-                .OrderBy(m => m.Exam.ExamDate).ThenBy(m => m.Subject.Name)
+                            m.Exam.Status == ExamLifecycle.Published);
+            var visibleMarks = await _results.ScopeAsync(marksQuery, User, cancellationToken);
+            var marks = await visibleMarks.OrderBy(m => m.Exam.ExamDate).ThenBy(m => m.Subject.Name)
                 .ToListAsync(cancellationToken);
             var weighted = marks.Count == 0 ? 0 :
                 marks.Sum(m => (m.Score / m.Exam.MaximumMarks) * m.Exam.WeightPercent) /
@@ -367,23 +385,9 @@ namespace Student_Management_System.Controllers
         public async Task<IActionResult> Export([FromQuery] ListQuery request, CancellationToken cancellationToken)
         {
             request.Normalize();
-            var query = _context.Students.AsNoTracking()
-                .Include(s => s.Department).Include(s => s.Class).Include(s => s.Section).Include(s => s.Semester)
-                .AsQueryable();
-            if (User.IsInRole("HOD"))
-            {
-                var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                var departmentId = await _context.Teachers.Where(t => t.UserId == uid && t.TeacherType == TeacherType.HOD)
-                    .Select(t => t.DepartmentId).SingleOrDefaultAsync(cancellationToken);
-                if (!departmentId.HasValue) return Forbid();
-                query = query.Where(s => s.DepartmentId == departmentId);
-            }
-            if (!string.IsNullOrWhiteSpace(request.Search))
-                query = query.Where(s => s.FullName.Contains(request.Search) || s.Email.Contains(request.Search));
-            if (request.DepartmentId.HasValue) query = query.Where(s => s.DepartmentId == request.DepartmentId);
-            if (request.ClassId.HasValue) query = query.Where(s => s.ClassId == request.ClassId);
-            if (request.SectionId.HasValue) query = query.Where(s => s.SectionId == request.SectionId);
-            var data = await query.OrderBy(s => s.FullName).ToListAsync(cancellationToken);
+            var query = await BuildDirectoryQueryAsync(request, cancellationToken);
+            if (query == null) return Forbid();
+            var data = await SortDirectory(query, request).ToListAsync(cancellationToken);
             var rows = new List<string[]> { new[] { "Student ID", "Name", "Email", "Phone", "Department", "Class", "Section", "Semester" } };
             rows.AddRange(data.Select(s => new[] { s.Id.ToString(), s.FullName, s.Email, s.Phone ?? "", s.Department?.Name ?? "", s.Class?.Name ?? "", s.Section?.Name ?? "", s.Semester?.Name ?? "" }));
             return File(CsvExport.Create(rows), "text/csv", $"students-{DateTime.UtcNow:yyyyMMdd}.csv");
@@ -416,20 +420,27 @@ namespace Student_Management_System.Controllers
             if (User.IsInRole("HOD"))
             {
                 var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                student.DepartmentId = await _context.Teachers.Where(t => t.UserId == uid && t.TeacherType == TeacherType.HOD)
-                    .Select(t => t.DepartmentId).SingleOrDefaultAsync();
+                student.DepartmentId = await GetHodDepartmentAsync(uid, cancellationToken);
                 if (!student.DepartmentId.HasValue ||
                     !await _context.Classes.AnyAsync(c => c.Id == student.ClassId && c.DepartmentId == student.DepartmentId))
                     return Forbid();
             }
 
+            await ValidateStudentPlacementAsync(student, cancellationToken);
             if (!ModelState.IsValid)
             {
                 LoadStudentDropdowns(student);
                 return View(student);
             }
+            int campusId;
+            try { campusId = await _campusScope.RequireDefaultCampusIdAsync(User, cancellationToken); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or InvalidOperationException)
+            {
+                ModelState.AddModelError("", "An active campus must be assigned before creating a student. Contact an administrator.");
+                LoadStudentDropdowns(student);
+                return View(student);
+            }
 
-            // 🔥 CHECK USER EXISTS
             var existingUser = await _userManager.FindByEmailAsync(student.Email);
             if (existingUser != null)
             {
@@ -492,6 +503,11 @@ namespace Student_Management_System.Controllers
                         return View(student);
                     }
 
+                    _context.UserCampusMemberships.Add(new UserCampusMembership
+                    {
+                        UserId = user.Id, CampusId = campusId, IsDefault = true,
+                        GrantedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    });
                     student.UserId = user.Id;
                     student.PhotoPath = storedPhoto?.StorageKey;
 
@@ -511,19 +527,19 @@ namespace Student_Management_System.Controllers
                                 SectionId = student.SectionId,
                                 AcademicYearId = currentYear.Value
                             });
-                        var subjectIds = await _context.Subjects
-                            .Where(s => s.ClassId == student.ClassId)
-                            .Select(s => s.Id)
-                            .ToListAsync(cancellationToken);
-                        _context.StudentSubjectEnrollments.AddRange(
-                            subjectIds.Select(subjectId =>
-                                new StudentSubjectEnrollment
-                                {
-                                    StudentId = student.Id,
-                                    SubjectId = subjectId
-                                }));
-                        await _context.SaveChangesAsync(cancellationToken);
                     }
+                    var subjectIds = await _context.Subjects
+                        .Where(s => s.ClassId == student.ClassId)
+                        .Select(s => s.Id)
+                        .ToListAsync(cancellationToken);
+                    _context.StudentSubjectEnrollments.AddRange(
+                        subjectIds.Select(subjectId =>
+                            new StudentSubjectEnrollment
+                            {
+                                StudentId = student.Id,
+                                SubjectId = subjectId
+                            }));
+                    await _context.SaveChangesAsync(cancellationToken);
 
                     await transaction.CommitAsync(cancellationToken);
                     committed = true;
@@ -580,7 +596,7 @@ namespace Student_Management_System.Controllers
         [RequestSizeLimit(6 * 1024 * 1024)]
         public async Task<IActionResult> Edit(
             int id,
-            [Bind("Id,FullName,Email,Phone,DOB,Address,AdmissionNumber,RollNumber,StudentStatus,AdmissionDate,ExpectedGraduationDate,EmergencyContactName,EmergencyContactPhone,BloodGroup,ClassId,SectionId,DepartmentId,SemesterId,AcademicProgramId,RowVersion")] Student student,
+            [Bind("Id,FullName,Email,Phone,DOB,Address,ClassId,SectionId,DepartmentId,SemesterId,RowVersion")] Student student,
             IFormFile? PhotoFile,
             CancellationToken cancellationToken)
         {
@@ -589,19 +605,7 @@ namespace Student_Management_System.Controllers
             ModelState.Remove("User"); ModelState.Remove("Class"); ModelState.Remove("Section");
             ModelState.Remove("Department"); ModelState.Remove("Semester");
 
-            var classRecord = await _context.Classes.AsNoTracking().SingleOrDefaultAsync(c => c.Id == student.ClassId);
-            if (classRecord == null)
-                ModelState.AddModelError(nameof(student.ClassId), "Select a valid class.");
-            var sectionValid = await _context.Sections.AsNoTracking()
-                .AnyAsync(s => s.Id == student.SectionId && s.ClassId == student.ClassId);
-            if (!sectionValid)
-                ModelState.AddModelError(nameof(student.SectionId), "The selected section does not belong to this class.");
-            if (student.DepartmentId.HasValue && classRecord?.DepartmentId != student.DepartmentId)
-                ModelState.AddModelError(nameof(student.DepartmentId), "The selected department must match the class department.");
-            if (student.SemesterId.HasValue &&
-                !await _context.Semesters.AsNoTracking().AnyAsync(s => s.Id == student.SemesterId &&
-                    (!student.DepartmentId.HasValue || s.DepartmentId == student.DepartmentId)))
-                ModelState.AddModelError(nameof(student.SemesterId), "Select a semester from the student's department.");
+            await ValidateStudentPlacementAsync(student, cancellationToken);
 
             var duplicateUser = await _userManager.FindByEmailAsync(student.Email);
             var existing = await _context.Students.Include(s => s.User).SingleOrDefaultAsync(s => s.Id == id);
@@ -794,9 +798,10 @@ namespace Student_Management_System.Controllers
                 [id],
                 cancellationToken);
             if (student == null) return NotFound();
-            if (string.IsNullOrWhiteSpace(reason))
+            if (student.IsArchived) return RedirectToAction(nameof(Index));
+            if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 500)
             {
-                ModelState.AddModelError(nameof(reason), "An archive reason is required.");
+                ModelState.AddModelError(nameof(reason), "Enter an archive reason of 1 to 500 characters.");
                 return View("Delete", student);
             }
             student.IsArchived = true;
@@ -832,16 +837,10 @@ namespace Student_Management_System.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (User.IsInRole("HOD"))
             {
-                var departmentId = await _context.Teachers
-                    .Where(t => t.UserId == userId &&
-                                t.TeacherType == TeacherType.HOD)
-                    .Select(t => t.DepartmentId)
-                    .SingleOrDefaultAsync(cancellationToken);
-                if (!id.HasValue || !departmentId.HasValue)
-                    return null;
-                return allowedStudents.Where(
-                    s => s.Id == id &&
-                         s.DepartmentId == departmentId);
+                var departmentId = await GetHodDepartmentAsync(userId, cancellationToken);
+                if (!id.HasValue || !departmentId.HasValue) return null;
+                return StudentRecordScope.ForHod(_context, allowedStudents, userId, departmentId.Value)
+                    .Where(s => s.Id == id);
             }
 
             if (User.IsInRole("Professor"))
@@ -858,6 +857,25 @@ namespace Student_Management_System.Controllers
             }
 
             return allowedStudents.Where(s => s.UserId == userId);
+        }
+
+        private Task<int?> GetHodDepartmentAsync(string? userId, CancellationToken cancellationToken) =>
+            _context.Teachers.AsNoTracking()
+                .Where(t => t.UserId == userId && t.TeacherType == TeacherType.HOD &&
+                            !t.IsArchived && t.User.IsActive)
+                .Select(t => t.DepartmentId).SingleOrDefaultAsync(cancellationToken);
+
+        private async Task ValidateStudentPlacementAsync(Student student, CancellationToken cancellationToken)
+        {
+            var placement = await _context.Classes.AsNoTracking()
+                .SingleOrDefaultAsync(c => c.Id == student.ClassId, cancellationToken);
+            var section = await _context.Sections.AsNoTracking()
+                .SingleOrDefaultAsync(s => s.Id == student.SectionId, cancellationToken);
+            var semester = student.SemesterId.HasValue
+                ? await _context.Semesters.AsNoTracking().SingleOrDefaultAsync(s => s.Id == student.SemesterId, cancellationToken)
+                : null;
+            foreach (var error in StudentPlacementRules.Validate(student, placement, section, semester))
+                ModelState.AddModelError(error.Field, error.Message);
         }
 
         private void SetPrivateNoStoreHeaders()
@@ -894,10 +912,10 @@ namespace Student_Management_System.Controllers
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var departmentId = User.IsInRole("HOD")
-                ? _context.Teachers.Where(t => t.UserId == userId && t.TeacherType == TeacherType.HOD)
+                ? _context.Teachers.Where(t => t.UserId == userId && t.TeacherType == TeacherType.HOD && !t.IsArchived && t.User.IsActive)
                     .Select(t => t.DepartmentId).SingleOrDefault()
                 : selected?.DepartmentId;
-            var restrictToDepartment = User.IsInRole("HOD") && departmentId.HasValue;
+            var restrictToDepartment = User.IsInRole("HOD");
             ViewBag.Classes = new SelectList(
                 _context.Classes.Where(c => !restrictToDepartment || c.DepartmentId == departmentId).OrderBy(c => c.Name),
                 "Id", "Name", selected?.ClassId);

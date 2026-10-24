@@ -2,9 +2,13 @@
 <div class="metric-grid management-stats" aria-label="Summary statistics">
 @foreach (var card in Model)
 {
+    var filters = ViewContext.HttpContext.Request.Query
+        .ToDictionary(x => x.Key, x => (string?)x.Value.ToString());
+    filters["page"] = "1";
+    if (card.FilterName != null) filters[card.FilterName] = card.FilterValue;
     var href = string.IsNullOrWhiteSpace(card.FilterName)
         ? null
-        : $"?{card.FilterName}={Uri.EscapeDataString(card.FilterValue ?? "")}";
+        : ViewContext.HttpContext.Request.Path + Microsoft.AspNetCore.Http.QueryString.Create(filters).ToString();
     if (href != null)
     {
         <a class="metric-card @card.Tone metric-card-link" href="@href" aria-label="@card.Label: @card.Value. @card.SupportingText">

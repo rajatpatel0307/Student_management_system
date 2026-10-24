@@ -122,6 +122,9 @@
                         <a class="nav-link @IsActive("Staff")" href="/Staff" title="Manage staff">
                             <i class="fa-solid fa-user-shield" aria-hidden="true"></i><span>Manage staff</span>
                         </a>
+                        <a class="nav-link" href="/Staff/Create" title="Add Staff">
+                            <i class="fa-solid fa-user-plus" aria-hidden="true"></i><span>Add Staff</span>
+                        </a>
                     </div>
                 }
                 @{
@@ -541,6 +544,10 @@
             @if (TempData["Error"] != null)
             {
                 <div class="app-toast-source" data-toast-type="danger" data-toast-message="@TempData["Error"]"></div>
+            }
+            @if (TempData["Warning"] is string warning)
+            {
+                <div class="alert alert-warning" role="status">@warning</div>
             }
 
             <div class="route-content" data-controller="@controller" data-action="@action" data-page-kind="@pageKind">

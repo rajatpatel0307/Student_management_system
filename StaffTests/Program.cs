@@ -17,6 +17,7 @@ using Student_Management_System.Services;
 
 var assertions = 0;
 void Check(bool condition, string message) { assertions++; if (!condition) throw new Exception(message); }
+await StudentDirectoryVerification.RunAsync(Check);
 var autoInput = new StaffInput { FullName = "Auto identifiers", Email = "auto@test.invalid", Role = "Librarian" };
 Check(Validator.TryValidateObject(autoInput, new ValidationContext(autoInput), [], true), "Staff creation must not require a supplied employee ID or username.");
 autoInput.Password = "Staff!1234"; autoInput.ConfirmPassword = autoInput.Password;

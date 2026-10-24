@@ -1230,3 +1230,36 @@ a.activity-item:hover { background: var(--surface-soft); }
   .fee-slip-logo { color: #111; background: #fff; border: 2px solid #111; }
   .fee-slip-table td { height: 6rem; }
 }
+
+/* Student directory: shared tokens, server-side filtering, one responsive table. */
+.student-directory { min-width: 0; }
+.directory-context { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; margin: -.5rem 0 1.25rem; color: var(--text-muted); font-size: .85rem; }
+.directory-context i { margin-right: .4rem; color: var(--primary-600); }
+.directory-filter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: end; }
+.directory-filter-grid > :first-child { grid-column: span 2; }
+.directory-filter-grid > * { min-width: 0; }
+.directory-filters .form-control, .directory-filters .form-select { background-color: var(--surface-raised); color: var(--text-body); }
+.directory-filter-help { color: var(--text-muted); font-size: .8rem; margin: 1rem 0 0; }
+.page-size-selector { display: flex; gap: .5rem; align-items: center; }
+.page-size-selector label { font-size: .85rem; color: var(--text-muted); }
+.page-size-selector .form-select { width: auto; min-width: 4.5rem; }
+.directory-table .activity-copy { min-width: 0; }
+.directory-table .activity-copy small { overflow-wrap: anywhere; white-space: normal; }
+.directory-table .table-actions .btn { min-width: 2.75rem; min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 991.98px) {
+  .directory-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 575.98px) {
+  .directory-filter-grid { grid-template-columns: minmax(0, 1fr); }
+  .directory-filter-grid > :first-child { grid-column: auto; }
+  .student-directory .table-toolbar { align-items: stretch; flex-direction: column; }
+  .student-directory .table-toolbar-end { justify-content: flex-start; }
+  .student-directory .table-responsive { overflow-x: auto; }
+  .directory-table { min-width: 0 !important; }
+  .directory-table thead { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+  .directory-table, .directory-table tbody, .directory-table tr, .directory-table td { display: block; width: 100%; }
+  .directory-table tr { padding: .75rem; border-bottom: 1px solid var(--border-subtle); }
+  .directory-table td { border: 0; padding: .45rem .25rem; white-space: normal; }
+  .directory-table td::before { content: attr(data-label); display: block; font-size: .7rem; font-weight: 700; color: var(--text-muted); margin-bottom: .25rem; }
+  .directory-table .table-actions { justify-content: flex-start; }
+}

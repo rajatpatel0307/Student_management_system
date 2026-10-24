@@ -2,10 +2,11 @@
 
 The project now includes database-backed management summaries, server-side
 search/filtering/pagination, permission-aware related-record navigation and
-dedicated detail pages. See `../DATA_MANAGEMENT_ENHANCEMENT_REPORT.md` for the
-complete page inventory, implementation list and verification checklist.
-The complete Details/Edit repair inventory, authorization matrix and local
-verification results are in `../DETAILS_EDIT_REPAIR_REPORT.md`.
+dedicated detail pages. The repository inspection, severity-ranked findings,
+route/page inventories and implementation plan are in
+[docs/audit/PROJECT_AUDIT.md](docs/audit/PROJECT_AUDIT.md). Actual check results
+and remaining acceptance gaps are in
+[docs/audit/VERIFICATION.md](docs/audit/VERIFICATION.md).
 
 Secure ASP.NET Core MVC education ERP with portals for Super Admin, Admin, HOD,
 Professor, Student, Guardian, Accountant, Librarian, Admission Officer, and
@@ -88,8 +89,8 @@ The theme choice is stored in browser local storage. Attendance and marks entry
 also support optional browser-local drafts; submitting either workflow clears
 its saved draft.
 
-See `../UI_REDESIGN_REPORT.md` for the complete page inventory and UI
-verification checklist.
+See [docs/redesign/README.md](docs/redesign/README.md) for page specifications,
+the incremental redesign queue, and UI acceptance status.
 
 ## Development accounts
 
@@ -108,13 +109,20 @@ supplied through User Secrets. No reusable login is committed to this project.
 
 ## Tests
 
-From the parent directory run:
+From this repository directory run:
 
-`dotnet test Student_Management_System.Tests/Student_Management_System.Tests.csproj`
+`dotnet run --project StaffTests/StaffTests.csproj --no-restore`
 
-For the complete release gate and the exact verification status of this
-delivery, see `../docs/VERIFICATION_RESULTS.md` and run
-`../ops/verify-release.ps1`.
+`node --test Tests/*.test.mjs`
+
+`dotnet build Student_Management_System.csproj --no-restore`
+
+The solution also references a sibling `Student_Management_System.Tests`
+project that is absent from this checkout; a solution-wide build currently
+fails for that reason. StaffTests is a console regression runner, not a
+`dotnet test` discovery project. Its optional `--integration` mode requires
+a disposable SQL database. See [verification](docs/audit/VERIFICATION.md)
+for actual results and environment limitations.
 
 The `20260726000100_ErpFoundation` migration adds admissions, guardian links,
 the immutable finance ledger, leave requests, personal notifications, approval

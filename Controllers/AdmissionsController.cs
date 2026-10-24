@@ -246,10 +246,21 @@ public sealed class AdmissionsController : Controller
             return UnprocessableEntity("Only approved applications can be enrolled.");
         if (!application.ClassId.HasValue) return UnprocessableEntity("Assign a class before enrollment.");
 
+        var placement = await _db.Classes.AsNoTracking()
+            .SingleOrDefaultAsync(c => c.Id == application.ClassId);
         var section = await _db.Sections.AsNoTracking()
             .SingleOrDefaultAsync(s => s.Id == sectionId && s.ClassId == application.ClassId);
         var academicYear = await _db.AcademicYears.FindAsync(application.AcademicYearId);
-        if (section == null || academicYear == null) return BadRequest("Select a valid class section and academic year.");
+        var semester = placement?.SemesterId is int semesterId
+            ? await _db.Semesters.AsNoTracking().SingleOrDefaultAsync(s => s.Id == semesterId) : null;
+        var enrollmentInput = new Student
+        {
+            ClassId = application.ClassId.Value, SectionId = sectionId,
+            DepartmentId = application.DepartmentId, SemesterId = placement?.SemesterId
+        };
+        var placementErrors = StudentPlacementRules.Validate(enrollmentInput, placement, section, semester);
+        if (placementErrors.Count != 0 || academicYear == null || academicYear.IsArchived)
+            return BadRequest("Select an active class, matching section, department, semester and academic year before enrollment.");
         if (await _users.FindByEmailAsync(application.Email) != null)
             return Conflict("An account already uses this email address.");
 
@@ -292,8 +303,15 @@ public sealed class AdmissionsController : Controller
                 UserId = user.Id,
                 DepartmentId = application.DepartmentId,
                 ClassId = application.ClassId.Value,
-                SectionId = section.Id
+                SectionId = section!.Id,
+                SemesterId = placement!.SemesterId,
+                AcademicProgramId = application.AcademicProgramId
             };
+            _db.UserCampusMemberships.Add(new UserCampusMembership
+            {
+                UserId = user.Id, CampusId = application.CampusId!.Value, IsDefault = true,
+                GrantedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            });
             _db.Students.Add(student);
             await _db.SaveChangesAsync();
             _db.StudentClassEnrollments.Add(new StudentClassEnrollment
@@ -304,6 +322,11 @@ public sealed class AdmissionsController : Controller
                 AcademicYearId = academicYear.Id,
                 IsActive = true
             });
+            var subjectIds = await _db.Subjects.AsNoTracking()
+                .Where(s => s.ClassId == application.ClassId)
+                .Select(s => s.Id).ToListAsync();
+            _db.StudentSubjectEnrollments.AddRange(subjectIds.Select(subjectId =>
+                new StudentSubjectEnrollment { StudentId = student.Id, SubjectId = subjectId }));
             var previousStage = application.Stage;
             application.EnrolledStudentId = student.Id;
             application.Stage = AdmissionStage.Enrolled;
@@ -339,7 +362,7 @@ public sealed class AdmissionsController : Controller
         TempData[delivered ? "Success" : "Warning"] = delivered
             ? "Student enrolled and the activation invitation was sent."
             : "Student enrolled, but activation email delivery is pending. Use Resend activation after SMTP is restored.";
-        return RedirectToAction("Details", "Students", new { id = studentId.Value });
+        return RedirectToAction(nameof(Details), new { id = application.Id });
     }
 
     [PermissionAuthorize("admission.approve")]
@@ -377,7 +400,7 @@ public sealed class AdmissionsController : Controller
 
     [PermissionAuthorize("admission.review")]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> TransitionTo(long id, AdmissionStage stage, string reason)
+    public async Task<IActionResult> TransitionTo(long id, AdmissionStage stage, string? reason)
     {
         var application = await _db.AdmissionApplications.SingleOrDefaultAsync(a => a.Id == id);
         if (application == null) return NotFound();
@@ -398,7 +421,7 @@ public sealed class AdmissionsController : Controller
             AdmissionApplicationId = id,
             FromStage = previous,
             ToStage = stage,
-            Comment = reason.Trim(),
+            Comment = reason?.Trim(),
             ChangedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? ""
         });
         await _db.SaveChangesAsync();

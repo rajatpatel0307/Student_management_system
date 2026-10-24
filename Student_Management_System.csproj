@@ -29,9 +29,9 @@
     <!-- Patch the existing scaffolding dependency and its NuGet.Packaging
          dependency for GHSA-g4vj-cjjj-v7hg without changing framework versions. -->
     <PackageReference Include="NuGet.Protocol" Version="6.11.2" PrivateAssets="all" />
-    <!-- 4.0 requires a build-time Six Labors license key. 3.1.12 retains the
-         upload validation/re-encoding API used by this project without that
-         build-time key requirement. Review the Split License for your use. -->
+    <!-- This version emits a build warning when a Six Labors license is absent.
+         Configure the appropriate license for the deployment; do not silently
+         change image-processing dependencies as part of a UI update. -->
     <PackageReference Include="SixLabors.ImageSharp" Version="4.1.2" />
   </ItemGroup>
 

@@ -7,7 +7,7 @@
     var absent = Model.Attendance.Count(x => x.Status == "Absent");
     var late = Model.Attendance.Count(x => x.Status == "Late");
     var excused = Model.Attendance.Count(x => x.Status == "Excused");
-    var inactive = student.User?.LockoutEnd > DateTimeOffset.UtcNow;
+    var inactive = student.User == null || !student.User.IsActive || student.User.LockoutEnd > DateTimeOffset.UtcNow;
     var lastLogin = Model.LoginHistory.FirstOrDefault(x => x.Succeeded);
 }
 <div class="page-header"><div class="page-header-copy"><span class="eyebrow">People / Students / #@student.Id</span><h1>Student details</h1><p>Complete academic, attendance, performance and enrollment record from the live database.</p></div><div class="page-actions"><button class="btn btn-outline-secondary" data-print-page><i class="fa-solid fa-print"></i> Print</button>@if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin")) { <a asp-action="Edit" asp-route-id="@student.Id" class="btn btn-primary"><i class="fa-regular fa-pen-to-square"></i> Edit student</a><a asp-action="Index" class="btn btn-outline-secondary">Back</a> } else { <a href="#" data-history-back class="btn btn-outline-secondary">Back</a> }</div></div>

@@ -3,67 +3,94 @@
 @using Student_Management_System.Security
 @inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
 @using Microsoft.AspNetCore.Authorization
+@inject Student_Management_System.Services.PermissionService Permissions
 @{
-    ViewData["Title"] = "Students";
+    ViewData["Title"] = "Student directory";
+    var isAdministrator = User.IsInRole("Admin") || User.IsInRole("SuperAdmin");
+    var enforceAdminOverrides = User.IsInRole("Admin") && !User.IsInRole("SuperAdmin");
+    var canCreate = !enforceAdminOverrides || await Permissions.HasAsync(User, "student.create");
+    var canEdit = isAdministrator && (!enforceAdminOverrides || await Permissions.HasAsync(User, "student.update"));
+    var canDelete = isAdministrator && (!enforceAdminOverrides || await Permissions.HasAsync(User, "student.delete"));
+    var canOpenClasses = !enforceAdminOverrides || await Permissions.HasAsync(User, "ManageAcademics");
+    var hasFilters = ViewContext.HttpContext.Request.Query.Any(x =>
+        new[] { "search", "departmentId", "classId", "sectionId", "semesterId", "status" }.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(x.Value));
+    string? SortState(string column) => Model.Sort == column || (column == "name" && Model.Sort == null)
+        ? (Model.Direction == "desc" ? "descending" : "ascending") : null;
     var httpRequest = ViewContext.HttpContext.Request;
     var request = httpRequest.Query;
     string SortUrl(string column)
     {
         var values = request.ToDictionary(x => x.Key, x => (string?)x.Value.ToString());
         values["sort"] = column;
-        values["direction"] = Model.Sort == column && Model.Direction == "asc" ? "desc" : "asc";
+        values["direction"] = (Model.Sort == column || (Model.Sort == null && column == "name")) && Model.Direction == "asc" ? "desc" : "asc";
         values["page"] = "1";
         return httpRequest.Path.ToString() + Microsoft.AspNetCore.Http.QueryString.Create(values).ToString();
     }
 }
+<div class="student-directory">
 <partial name="_ManagementHeader" model="@(new ManagementHeaderViewModel {
-    Eyebrow = "People", Title = "Students",
-    Description = "Manage student profiles, enrollment, attendance, marks and academic progress using live institutional data.",
-    PrimaryAction = "Create", PrimaryLabel = "Add student", PrimaryController = "Students",
+    Eyebrow = "People", Title = "Student directory",
+    Description = "Find a student, review their academic profile, and keep enrollment records up to date.",
+    PrimaryAction = canCreate ? "Create" : null, PrimaryLabel = "Add student", PrimaryController = "Students",
     ExportAction = "Export", ExportController = "Students"
 })" />
+<div class="directory-context"><span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> @(isAdministrator ? "Institution student records" : "Your department and shared campuses")</span><span>Archived students are excluded</span></div>
 <partial name="_StatCards" model="@((IEnumerable<StatCardViewModel>)ViewBag.Stats)" />
 
-<form method="get" class="card filter-panel" role="search" aria-label="Student filters">
-    <div class="filter-panel-grid">
-        <div><label class="form-label" for="student-search">Search students</label><div class="input-icon"><i class="fa-solid fa-magnifying-glass"></i><input id="student-search" name="search" value="@Model.Search" class="form-control" placeholder="Name, email or phone" autocomplete="off" /></div></div>
+<form method="get" class="card filter-panel directory-filters" role="search" aria-label="Student filters">
+    <div class="directory-filter-grid">
+        <div><label class="form-label" for="student-search">Search students</label><div class="input-icon"><i class="fa-solid fa-magnifying-glass"></i><input type="search" id="student-search" name="search" value="@Model.Search" class="form-control" placeholder="Name, email or phone" autocomplete="off" /></div></div>
         <div><label class="form-label" for="department-filter">Department</label><select id="department-filter" name="departmentId" class="form-select"><option value="">All departments</option>@foreach (var item in (IEnumerable<Department>)ViewBag.Departments) { <option value="@item.Id" selected="@(request["departmentId"] == item.Id.ToString())">@item.Name</option> }</select></div>
         <div><label class="form-label" for="class-filter">Class</label><select id="class-filter" name="classId" class="form-select"><option value="">All classes</option>@foreach (var item in (IEnumerable<Class>)ViewBag.Classes) { <option value="@item.Id" selected="@(request["classId"] == item.Id.ToString())">@item.Name</option> }</select></div>
         <div><label class="form-label" for="section-filter">Section</label><select id="section-filter" name="sectionId" class="form-select"><option value="">All sections</option>@foreach (var item in (IEnumerable<Section>)ViewBag.Sections) { <option value="@item.Id" selected="@(request["sectionId"] == item.Id.ToString())">@item.Name</option> }</select></div>
-        <div><label class="form-label" for="status-filter">Account status</label><select id="status-filter" name="status" class="form-select"><option value="">All statuses</option><option value="active" selected="@(request["status"] == "active")">Active</option><option value="inactive" selected="@(request["status"] == "inactive")">Inactive</option><option value="low-attendance" selected="@(request["status"] == "low-attendance")">Low attendance</option></select></div>
+        <div><label class="form-label" for="status-filter">Record status</label><select id="status-filter" name="status" class="form-select"><option value="">All statuses</option><option value="active" selected="@(request["status"] == "active")">Active</option><option value="inactive" selected="@(request["status"] == "inactive")">Inactive</option><option value="unassigned" selected="@(request["status"] == "unassigned")">Missing placement</option><option value="low-attendance" selected="@(request["status"] == "low-attendance")">Low attendance</option></select></div>
+        <div><label class="form-label" for="semester-filter">Semester</label><select id="semester-filter" name="semesterId" class="form-select"><option value="">All semesters</option>@foreach (var item in (IEnumerable<Semester>)ViewBag.Semesters) { <option value="@item.Id" selected="@(request["semesterId"] == item.Id.ToString())">@item.Name</option> }</select></div>
+        <div><label class="form-label" for="student-sort">Sort by</label><select id="student-sort" name="sort" class="form-select">@foreach (var column in new[] { ("name", "Student name"), ("department", "Department"), ("class", "Class"), ("email", "Email") }) { <option value="@column.Item1" selected="@((Model.Sort ?? "name").Equals(column.Item1, StringComparison.OrdinalIgnoreCase))">@column.Item2</option> }</select></div>
+        <div><label class="form-label" for="student-direction">Order</label><select id="student-direction" name="direction" class="form-select"><option value="asc" selected="@(Model.Direction == "asc")">Ascending</option><option value="desc" selected="@(Model.Direction == "desc")">Descending</option></select></div>
         <div class="filter-actions"><button class="btn btn-primary" type="submit">Apply</button><a asp-action="Index" class="btn btn-outline-secondary">Reset</a></div>
     </div>
-    <input type="hidden" name="sort" value="@Model.Sort" /><input type="hidden" name="direction" value="@Model.Direction" />
-    <div class="active-filters" aria-live="polite">
-        @if (!string.IsNullOrWhiteSpace(Model.Search)) { <span class="filter-chip"><i class="fa-solid fa-magnifying-glass"></i> “@Model.Search”</span> }
-        @if (!string.IsNullOrWhiteSpace(request["status"])) { <span class="filter-chip"><i class="fa-solid fa-filter"></i> @request["status"]</span> }
-    </div>
+    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    <p class="directory-filter-help">Filters also apply to summary counts and CSV export. Low attendance means below 75% of recorded sessions.</p>
 </form>
 
-<section class="card table-card">
-    <div class="table-toolbar"><div class="table-toolbar-start"><strong>@Model.TotalCount student records</strong></div><div class="table-toolbar-end"><form method="get"><input type="hidden" name="search" value="@Model.Search" /><label class="visually-hidden" for="student-page-size">Rows per page</label><select id="student-page-size" name="pageSize" class="form-select" data-submit-on-change>@foreach (var size in new[] { 10, 20, 50, 100 }) { <option value="@size" selected="@(Model.PageSize == size)">@size per page</option> }</select></form></div></div>
+<section class="card table-card" aria-labelledby="student-results">
+    <div class="table-toolbar"><div class="table-toolbar-start"><div><h2 id="student-results" class="h5 mb-1">Students <span class="badge bg-primary">@Model.TotalCount.ToString("N0")</span></h2><p class="text-muted mb-0">@(hasFilters ? "Matching your current filters" : "All current student records")</p></div></div><div class="table-toolbar-end"><partial name="_PageSizeSelector" model="Model.PageSize" /></div></div>
     @if (Model.Items.Count == 0)
     {
-        <partial name="_EmptyRecords" model="@(("No students found", "Try changing the filters or add the first student record.", User.IsInRole("Admin") || User.IsInRole("SuperAdmin") || User.IsInRole("HOD") ? "Create" : null, "Add student"))" />
+        <div class="empty-state"><span class="empty-state-icon"><i class="fa-solid fa-user-graduate" aria-hidden="true"></i></span><h3>@(hasFilters ? "No matching students" : "Your student directory is ready")</h3><p>@(hasFilters ? "Change the search or filters to find a student." : "Add the first student to start managing enrollment and academic profiles.")</p>@if (hasFilters) { <a asp-action="Index" class="btn btn-outline-primary">Clear filters</a> } else if (canCreate) { <a asp-action="Create" class="btn btn-primary">Add student</a> }</div>
     }
     else
     {
         <div class="table-responsive">
-            <table class="table table-hover" data-enhanced="true">
-                <thead><tr><th><input type="checkbox" aria-label="Select all students" data-select-all /></th><th><a class="sortable" href="@SortUrl("name")">Student <i class="fa-solid fa-sort"></i></a></th><th><a class="sortable" href="@SortUrl("department")">Department <i class="fa-solid fa-sort"></i></a></th><th><a class="sortable" href="@SortUrl("class")">Placement <i class="fa-solid fa-sort"></i></a></th><th>Account</th><th class="text-end">Actions</th></tr></thead>
-                <tbody>
+            <table class="table table-hover directory-table" role="table" data-enhanced="true">
+                <caption class="visually-hidden">Student directory. @Model.TotalCount matching records; page @Model.Page of @Model.TotalPages.</caption>
+                <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col" aria-sort="@SortState("name")"><a class="sortable" href="@SortUrl("name")">Student <i class="fa-solid fa-sort"></i></a></th><th role="columnheader" scope="col" aria-sort="@SortState("department")"><a class="sortable" href="@SortUrl("department")">Department <i class="fa-solid fa-sort"></i></a></th><th role="columnheader" scope="col" aria-sort="@SortState("class")"><a class="sortable" href="@SortUrl("class")">Placement <i class="fa-solid fa-sort"></i></a></th><th role="columnheader" scope="col">Account</th><th role="columnheader" scope="col" class="text-end">Actions</th></tr></thead>
+                <tbody role="rowgroup">
                 @foreach (var item in Model.Items)
                 {
                     var initials = string.Concat(item.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
-                    var active = item.User != null && (!item.User.LockoutEnd.HasValue || item.User.LockoutEnd <= DateTimeOffset.UtcNow);
+                    var active = item.User != null && item.User.IsActive && (!item.User.LockoutEnd.HasValue || item.User.LockoutEnd <= DateTimeOffset.UtcNow);
                     var authorizationResult = await AuthorizationService.AuthorizeAsync(User, item, ProfilePolicies.StudentEdit);
-                    <tr>
-                        <td><input type="checkbox" aria-label="Select @item.FullName" value="@item.Id" data-row-select /></td>
-                        <td><div class="attendance-person">@if (!string.IsNullOrWhiteSpace(item.PhotoPath)) { <a asp-action="Details" asp-route-id="@item.Id" class="avatar avatar-sm"><img src="@Url.Action("Photo", "Students", new { id = item.Id })" alt="@item.FullName" /></a> } else { <a asp-action="Details" asp-route-id="@item.Id" class="avatar avatar-sm">@initials</a> }<span class="activity-copy"><a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.FullName</a><small>@item.Email · ID #@item.Id</small></span></div></td>
-                        <td>@(item.Department?.Name ?? "Unassigned")<small class="d-block text-muted">@(item.Semester?.Name ?? "No semester")</small></td>
-                        <td><a asp-controller="Classes" asp-action="Details" asp-route-id="@item.ClassId" class="record-link">@(item.Class?.Name ?? "Unassigned")</a><small class="d-block text-muted">Section @(item.Section?.Name ?? "—")</small></td>
-                        <td><span class="badge @(active ? "bg-success" : "bg-warning")"><span class="status-dot"></span>@(active ? "Active" : "Inactive")</span></td>
-                        <td><div class="table-actions"><a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" title="View details"><i class="fa-regular fa-eye"></i><span class="visually-hidden">View @item.FullName</span></a>@if (User.IsInRole("HOD") && authorizationResult.Succeeded) { <a asp-controller="HodManagement" asp-action="EditStudent" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="Edit eligible student"><i class="fa-regular fa-pen-to-square"></i></a> } else if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin")) { <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="fa-regular fa-pen-to-square"></i></a><a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger" title="Delete"><i class="fa-regular fa-trash-can"></i></a> }</div></td>
+                    <tr role="row">
+                        <td role="cell" data-label="Student"><div class="attendance-person">@if (!string.IsNullOrWhiteSpace(item.PhotoPath)) { <a asp-action="Details" asp-route-id="@item.Id" class="avatar avatar-sm"><img src="@Url.Action("Photo", "Students", new { id = item.Id })" alt="@item.FullName" /></a> } else { <a asp-action="Details" asp-route-id="@item.Id" class="avatar avatar-sm">@initials</a> }<span class="activity-copy"><a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.FullName</a><small>@item.Email · ID #@item.Id</small></span></div></td>
+                        <td role="cell" data-label="Department">@(item.Department?.Name ?? "Unassigned")<small class="d-block text-muted">@(item.Semester?.Name ?? "No semester")</small></td>
+                        <td role="cell" data-label="Placement">@if (canOpenClasses && item.Class != null && (isAdministrator || item.Class.DepartmentId == item.DepartmentId)) { <a asp-controller="Classes" asp-action="Details" asp-route-id="@item.ClassId" class="record-link">@item.Class.Name</a> } else { <span>@(item.Class?.Name ?? "Unassigned")</span> }<small class="d-block text-muted">Section @(item.Section?.Name ?? "—")</small></td>
+                        <td role="cell" data-label="Account"><span class="badge @(active ? "bg-success" : "bg-warning")"><span class="status-dot"></span>@(active ? "Active" : "Inactive")</span></td>
+                        <td role="cell" data-label="Actions"><div class="table-actions">
+                            <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary"><i class="fa-regular fa-eye" aria-hidden="true"></i><span class="visually-hidden">View @item.FullName</span></a>
+                            @if (User.IsInRole("HOD") && authorizationResult.Succeeded)
+                            {
+                                <a asp-controller="HodManagement" asp-action="EditStudent" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i><span class="visually-hidden">Edit @item.FullName</span></a>
+                            }
+                            else if (canEdit)
+                            {
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i><span class="visually-hidden">Edit @item.FullName</span></a>
+                            }
+                            @if (canDelete)
+                            {
+                                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-outline-danger"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span class="visually-hidden">Delete @item.FullName</span></a>
+                            }
+                        </div></td>
                     </tr>
                 }
                 </tbody>
@@ -72,3 +99,5 @@
         <partial name="_ServerPagination" model="Model" />
     }
 </section>
+
+</div>

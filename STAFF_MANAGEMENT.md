@@ -6,7 +6,15 @@ TypeScript compilation, Tailwind build, or separate application shell.
 
 ## Open the pages
 
-The corrected local instance is running at **https://localhost:5292/Staff**.
+The staff module is now also integrated into the user's existing main site at
+**https://localhost:7284/Staff**. Its source is the original project under
+`D:\SMS\EduFlow_Migrations_SuperAdmin_Secure_Fixed_2026-08-04\EduFlow_Migrations_SuperAdmin_Secure_Fixed_2026-08-04\Student_Management_System`.
+The dashboard header, sidebar and existing Team & Role Management page link
+directly to **Add Staff**. The original Team/Identity models and account validators
+are preserved; 230 integrated SQL/Identity/authenticated Razor assertions passed.
+Integration backups and the exact deployment manifest are in `.build/port7284`.
+
+The separate workspace preview previously ran at **https://localhost:5292/Staff**.
 Sign in with an existing administrator account to open the directory.
 
 - Admin Dashboard and Super Admin Dashboard both have a **Manage staff** card.

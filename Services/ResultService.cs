@@ -69,8 +69,8 @@ public sealed class ResultService : IResultService
                                     m.Exam.Status == ExamLifecycle.Published &&
                                     m.Student != null &&
                                     _db.GuardianStudentLinks.Any(link =>
-                                        link.StudentId == m.StudentId &&
-                                        link.GuardianProfile.UserId == userId));
+                                        link.StudentId == m.StudentId && link.UnlinkedUtc == null &&
+                                        link.CanViewAcademics && link.GuardianProfile.UserId == userId));
 
         return query.Where(_ => false);
     }

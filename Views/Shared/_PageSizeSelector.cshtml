@@ -1,0 +1,18 @@
+@model int
+@{
+    var query = ViewContext.HttpContext.Request.Query;
+}
+<form method="get" class="page-size-selector">
+    @foreach (var value in query.Where(x => !x.Key.Equals("pageSize", StringComparison.OrdinalIgnoreCase) && !x.Key.Equals("page", StringComparison.OrdinalIgnoreCase)))
+    {
+        <input type="hidden" name="@value.Key" value="@value.Value" />
+    }
+    <label for="record-page-size">Rows</label>
+    <select id="record-page-size" name="pageSize" class="form-select">
+        @foreach (var size in new[] { 10, 20, 50, 100 })
+        {
+            <option value="@size" selected="@(Model == size)">@size</option>
+        }
+    </select>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Update</button>
+</form>

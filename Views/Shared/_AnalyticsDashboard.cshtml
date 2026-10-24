@@ -20,6 +20,11 @@
             </div>
         </div>
         <div class="analytics-actions">
+            @if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin"))
+            {
+                <a class="btn btn-primary" href="/Staff/Create"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Add Staff</a>
+                <a class="btn btn-outline-primary" href="/Staff">Manage staff</a>
+            }
             @if (!string.IsNullOrWhiteSpace(Model.PrimaryActionUrl))
             {
                 <a class="btn btn-primary" href="@Model.PrimaryActionUrl">@Model.PrimaryActionLabel</a>

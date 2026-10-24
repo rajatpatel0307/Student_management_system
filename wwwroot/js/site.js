@@ -533,18 +533,23 @@
                 const parentValue = parent.value;
                 const placeholder = select.dataset.placeholder || "Select an option";
                 select.innerHTML = `<option value="">${escapeHtml(parentValue ? "Loading…" : placeholder)}</option>`;
-                select.disabled = !parentValue;
+                select.disabled = true;
+                select.removeAttribute("aria-busy");
+                // Clear dependent descendants immediately (department -> class -> section).
+                select.dispatchEvent(new Event("change", { bubbles: true }));
                 if (!parentValue) return;
-                requestController = new AbortController();
+                const currentRequest = new AbortController();
+                requestController = currentRequest;
                 select.setAttribute("aria-busy", "true");
                 try {
                     const url = select.dataset.dependentUrl.replace("{value}", encodeURIComponent(parentValue));
                     const response = await fetch(url, {
-                        signal: requestController.signal,
+                        signal: currentRequest.signal,
                         headers: { "X-Requested-With": "XMLHttpRequest" }
                     });
                     if (!response.ok) throw new Error("Lookup request failed");
                     const options = await response.json();
+                    if (currentRequest.signal.aborted) return;
                     select.innerHTML = `<option value="">${escapeHtml(options.length ? placeholder : "No options available")}</option>` +
                         options.map(option => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.text)}</option>`).join("");
                     select.disabled = options.length === 0;
@@ -554,7 +559,7 @@
                     select.disabled = true;
                     showToast("Related options could not be loaded. Please try again.", "danger");
                 } finally {
-                    select.removeAttribute("aria-busy");
+                    if (requestController === currentRequest) select.removeAttribute("aria-busy");
                 }
             });
         });

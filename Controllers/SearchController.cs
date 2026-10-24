@@ -12,10 +12,12 @@ public sealed class SearchController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly PermissionService _permissions;
-    public SearchController(ApplicationDbContext db, PermissionService permissions)
+    private readonly ICampusScopeService _campusScope;
+    public SearchController(ApplicationDbContext db, PermissionService permissions, ICampusScopeService campusScope)
     {
         _db = db;
         _permissions = permissions;
+        _campusScope = campusScope;
     }
 
     public async Task<IActionResult> Index(string? q, int page = 1, CancellationToken cancellationToken = default)
@@ -32,8 +34,10 @@ public sealed class SearchController : Controller
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         ViewBag.Query = term;
 
-        if (User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("HOD") ||
-            User.IsInRole("Professor") || User.IsInRole("Guardian") || User.IsInRole("Student"))
+        var canSearchStudents = !User.IsInRole("Admin") || User.IsInRole("SuperAdmin") ||
+            await _permissions.HasAsync(User, "student.view", cancellationToken);
+        if (canSearchStudents && (User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("HOD") ||
+            User.IsInRole("Professor") || User.IsInRole("Guardian") || User.IsInRole("Student")))
         {
             var students = _db.Students.AsNoTracking().Include(s => s.Class)
                 .Where(s => !s.IsArchived &&
@@ -41,11 +45,18 @@ public sealed class SearchController : Controller
             if (User.IsInRole("Student")) students = students.Where(s => s.UserId == userId);
             if (User.IsInRole("Guardian"))
                 students = students.Where(s => _db.GuardianStudentLinks.Any(l =>
-                    l.StudentId == s.Id && l.GuardianProfile.UserId == userId));
+                    l.StudentId == s.Id && l.UnlinkedUtc == null && l.GuardianProfile.UserId == userId));
             if (User.IsInRole("Professor"))
                 students = students.Where(s => s.Class!.TeacherAssignments.Any(a => a.Teacher.UserId == userId));
             if (User.IsInRole("HOD"))
-                students = students.Where(s => s.Department!.Teachers.Any(t => t.UserId == userId && t.TeacherType == TeacherType.HOD));
+            {
+                var departmentId = await _db.Teachers.AsNoTracking()
+                    .Where(t => t.UserId == userId && t.TeacherType == TeacherType.HOD && !t.IsArchived && t.User.IsActive)
+                    .Select(t => t.DepartmentId).SingleOrDefaultAsync(cancellationToken);
+                students = departmentId.HasValue
+                    ? StudentRecordScope.ForHod(_db, students, userId, departmentId.Value)
+                    : students.Where(_ => false);
+            }
             foreach (var student in await students.OrderBy(s => s.FullName)
                          .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken))
             {
@@ -57,8 +68,10 @@ public sealed class SearchController : Controller
         }
 
         if (await _permissions.HasAsync(User, "admission.view", cancellationToken))
+        {
+            var allowedCampuses = await _campusScope.AllowedCampusIdsAsync(User, cancellationToken);
             foreach (var applicant in await _db.AdmissionApplications.AsNoTracking()
-                         .Where(a => !a.IsArchived &&
+                         .Where(a => !a.IsArchived && allowedCampuses.Contains(a.CampusId ?? 0) &&
                             (a.ApplicantName.Contains(term) ||
                              a.ReferenceNumber.Contains(term) ||
                              a.Email.Contains(term)))
@@ -66,6 +79,7 @@ public sealed class SearchController : Controller
                          .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken))
                 results.Add(new("Admissions", applicant.ApplicantName, $"Application · {applicant.Stage}",
                     "Admissions", "Details", applicant.Id));
+        }
 
         foreach (var book in await _db.LibraryBooks.AsNoTracking()
                      .Where(b => b.Title.Contains(term) || b.Author.Contains(term) ||
@@ -101,7 +115,7 @@ public sealed class SearchController : Controller
             else if (User.IsInRole("Guardian"))
                 finance = finance.Where(t => t.Student != null &&
                     _db.GuardianStudentLinks.Any(l => l.StudentId == t.StudentId &&
-                        l.CanViewFinance && l.GuardianProfile.UserId == userId));
+                        l.UnlinkedUtc == null && l.CanViewFinance && l.GuardianProfile.UserId == userId));
             else if (!User.IsInRole("SuperAdmin") && !User.IsInRole("Admin") &&
                      !User.IsInRole("Accountant"))
                 finance = finance.Where(_ => false);

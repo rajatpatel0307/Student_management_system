@@ -3,7 +3,7 @@
     ViewData["Title"] = "Add student";
 }
 <div class="page-header"><div class="page-header-copy"><span class="eyebrow">People</span><h1>Add student</h1><p>Create a secure login and assign the Student to an academic structure.</p></div><div class="page-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a></div></div>
-<div class="card section-card form-card"><form asp-action="Create" method="post" enctype="multipart/form-data" novalidate><div asp-validation-summary="All"></div>
+<div class="card section-card form-card"><form asp-action="Create" method="post" enctype="multipart/form-data" novalidate data-track-changes><div asp-validation-summary="All" class="text-danger" role="alert"></div>
 <div class="form-section"><div class="form-section-title"><h2>Personal information</h2><p>Use the Student’s official institutional details.</p></div><div class="row g-3">
 <div class="col-md-6"><label asp-for="FullName" class="form-label required"></label><input asp-for="FullName" class="form-control" placeholder="Full legal name" required /><span asp-validation-for="FullName"></span></div>
 <div class="col-md-6"><label asp-for="DOB" class="form-label required">Date of birth</label><input asp-for="DOB" type="date" class="form-control" required /><span asp-validation-for="DOB"></span></div>
@@ -13,12 +13,14 @@
 </div></div>
 <div class="form-section"><div class="form-section-title"><h2>Academic assignment</h2><p>Choose a compatible department, semester, class and section.</p></div><div class="row g-3">
 <div class="col-md-6"><label asp-for="DepartmentId" class="form-label">Department</label><select asp-for="DepartmentId" asp-items="ViewBag.Departments" class="form-select"><option value="">Select department</option></select></div>
-<div class="col-md-6"><label asp-for="SemesterId" class="form-label">Semester</label><select asp-for="SemesterId" asp-items="ViewBag.Semesters" class="form-select"><option value="">Select semester</option></select></div>
-<div class="col-md-6"><label asp-for="ClassId" class="form-label required">Class</label><select asp-for="ClassId" asp-items="ViewBag.Classes" class="form-select" required><option value="">Select class</option></select><span asp-validation-for="ClassId"></span></div>
-<div class="col-md-6"><label asp-for="SectionId" class="form-label required">Section</label><select asp-for="SectionId" asp-items="ViewBag.Sections" class="form-select" required><option value="">Select section</option></select><span asp-validation-for="SectionId"></span></div>
+<div class="col-md-6"><label asp-for="SemesterId" class="form-label">Semester</label><select asp-for="SemesterId" asp-items="ViewBag.Semesters" class="form-select" data-dependent-parent="#DepartmentId" data-dependent-url="/api/lookups/semesters?departmentId={value}" data-placeholder="Select semester"><option value="">Select semester</option></select></div>
+<div class="col-md-6"><label asp-for="ClassId" class="form-label required">Class</label><select asp-for="ClassId" asp-items="ViewBag.Classes" class="form-select" required data-dependent-parent="#DepartmentId" data-dependent-url="/api/lookups/classes?departmentId={value}" data-placeholder="Select class"><option value="">Select class</option></select><span asp-validation-for="ClassId"></span></div>
+<div class="col-md-6"><label asp-for="SectionId" class="form-label required">Section</label><select asp-for="SectionId" asp-items="ViewBag.Sections" class="form-select" required data-dependent-parent="#ClassId" data-dependent-url="/api/lookups/sections?classId={value}" data-placeholder="Select section"><option value="">Select section</option></select><span asp-validation-for="SectionId"></span></div>
 </div></div>
-<div class="form-section"><div class="form-section-title"><h2>Account and photo</h2><p>Share the initial password securely and ask the Student to change it after first login.</p></div><div class="row g-3">
+<div class="form-section"><div class="form-section-title"><h2>Account and photo</h2><p>The student receives a one-time activation link and chooses their own password.</p></div><div class="row g-3">
 <div class="col-md-6"><div class="alert alert-info mb-0">A one-time activation link will be emailed after the account is created. Administrators never know the student's password.</div></div>
 <div class="col-md-6"><label class="form-label" for="PhotoFile">Profile photo</label><input id="PhotoFile" name="PhotoFile" type="file" class="form-control" accept="image/jpeg,image/png,image/webp" /><div class="form-text">JPEG, PNG or WebP, maximum 5 MB and 4096 × 4096 pixels. Images are re-encoded securely.</div></div>
 </div></div>
-<div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit" data-confirm="Create this Student account with the selected academic assignment?"><i class="fa-solid fa-user-plus me-1"></i> Create student</button></div></form></div>
+<div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit" data-always-enabled data-confirm="Create this Student account with the selected academic assignment?"><i class="fa-solid fa-user-plus me-1"></i> Create student</button></div></form></div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

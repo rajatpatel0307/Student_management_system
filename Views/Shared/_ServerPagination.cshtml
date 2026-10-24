@@ -11,17 +11,19 @@
     }
 }
 <nav class="server-pagination" aria-label="Record pages">
-    <p>Showing <strong>@Model.FirstItem–@Model.LastItem</strong> of <strong>@Model.TotalCount</strong></p>
+    <p>Showing <strong>@Model.FirstItem to @Model.LastItem</strong> of <strong>@Model.TotalCount</strong></p>
     <ul class="pagination">
         <li class="page-item @(!Model.HasPrevious ? "disabled" : "")">
-            <a class="page-link" href="@(Model.HasPrevious ? PageUrl(current - 1) : "#")" aria-label="Previous page"><i class="fa-solid fa-chevron-left"></i></a>
+            @if (Model.HasPrevious) { <a class="page-link" href="@PageUrl(current - 1)" aria-label="Previous page"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></a> }
+            else { <span class="page-link" aria-disabled="true" aria-label="Previous page"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></span> }
         </li>
         @for (var pageNumber = Math.Max(1, current - 2); pageNumber <= Math.Min(totalPages, current + 2); pageNumber++)
         {
             <li class="page-item @(pageNumber == current ? "active" : "")"><a class="page-link" href="@PageUrl(pageNumber)" aria-current="@(pageNumber == current ? "page" : null)">@(pageNumber)</a></li>
         }
         <li class="page-item @(!Model.HasNext ? "disabled" : "")">
-            <a class="page-link" href="@(Model.HasNext ? PageUrl(current + 1) : "#")" aria-label="Next page"><i class="fa-solid fa-chevron-right"></i></a>
+            @if (Model.HasNext) { <a class="page-link" href="@PageUrl(current + 1)" aria-label="Next page"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></a> }
+            else { <span class="page-link" aria-disabled="true" aria-label="Next page"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span> }
         </li>
     </ul>
 </nav>
