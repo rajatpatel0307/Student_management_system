@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Student_Management_System.Models;
+using System.Security.Claims;
 
 namespace Student_Management_System.Services;
 
@@ -29,20 +30,28 @@ public sealed class AttendanceService : IAttendanceService
         CancellationToken cancellationToken = default)
     {
         period = period.Trim();
-        if (string.IsNullOrWhiteSpace(period)) throw new InvalidOperationException("Lecture or period is required.");
+        if (string.IsNullOrWhiteSpace(period) || period.Length > 100) throw new InvalidOperationException("Lecture or period must contain 1 to 100 characters.");
         if (records.Count == 0) throw new InvalidOperationException("Attendance roster is empty.");
         if (records.Any(r => r.Status is not ("Present" or "Absent" or "Late" or "Excused")))
             throw new InvalidOperationException("Attendance contains an unsupported status.");
         var submittedIds = records.Select(r => r.StudentId).Distinct().OrderBy(x => x).ToArray();
         if (submittedIds.Length != records.Count)
             throw new InvalidOperationException("Attendance roster contains duplicate students.");
-        var expectedIds = await _db.Students.AsNoTracking()
+        var teacher = await _db.Teachers.AsNoTracking().SingleOrDefaultAsync(t => t.Id == teacherId && t.UserId == actorUserId, cancellationToken);
+        if (teacher == null) throw new UnauthorizedAccessException("Attendance must be submitted by its assigned teacher.");
+        var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, actorUserId),
+            new Claim(ClaimTypes.Role, teacher.TeacherType == TeacherType.HOD ? "HOD" : "Professor")], "attendance-service"));
+        var expectedIds = await (await AcademicRecordScope.EntryStudentsAsync(_db, actor)).AsNoTracking()
             .Where(s => s.ClassId == classId && !s.IsArchived)
             .Select(s => s.Id).OrderBy(x => x).ToArrayAsync(cancellationToken);
         if (!submittedIds.SequenceEqual(expectedIds))
             throw new InvalidOperationException("The submitted roster does not match the active class roster.");
         if (!await _db.Subjects.AnyAsync(s => s.Id == subjectId && s.ClassId == classId, cancellationToken))
             throw new InvalidOperationException("Subject does not belong to the selected class.");
+        var subjectAllowed = teacher.TeacherType == TeacherType.HOD
+            ? await _db.Subjects.AnyAsync(subject => subject.Id == subjectId && subject.DepartmentId == teacher.DepartmentId && subject.Class.DepartmentId == teacher.DepartmentId, cancellationToken)
+            : await _db.TeacherSubjectAssignments.AnyAsync(assignment => assignment.SubjectId == subjectId && assignment.TeacherId == teacherId, cancellationToken);
+        if (!subjectAllowed) throw new UnauthorizedAccessException("The subject is outside the teacher's assignment.");
 
         var strategy = _db.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
@@ -66,13 +75,15 @@ public sealed class AttendanceService : IAttendanceService
             _db.AttendanceSessions.Add(session);
             foreach (var record in records)
             {
-                record.AttendanceSession = session;
-                record.SubjectId = subjectId;
-                record.TeacherId = teacherId;
-                record.Date = date.Date;
-                record.Lecture = period;
+                // Only roster identity and status come from the request. Never
+                // attach posted navigation graphs or trust record/session IDs.
+                _db.Attendances.Add(new Attendance
+                {
+                    StudentId = record.StudentId, Status = record.Status,
+                    AttendanceSession = session, SubjectId = subjectId,
+                    TeacherId = teacherId, Date = date.Date, Lecture = period
+                });
             }
-            _db.Attendances.AddRange(records);
             _db.AuditLogs.Add(new AuditLog
             {
                 UserId = actorUserId,
@@ -90,8 +101,9 @@ public sealed class AttendanceService : IAttendanceService
         IQueryable<Attendance> query,
         CancellationToken cancellationToken = default)
     {
-        var lateWeight = await GetWeightAsync("Attendance.LateWeight", 0.5m, cancellationToken);
-        var excusedWeight = await GetWeightAsync("Attendance.ExcusedWeight", 1m, cancellationToken);
+        var weights = await GetWeightsAsync(cancellationToken);
+        var lateWeight = weights.Late;
+        var excusedWeight = weights.Excused;
         var totals = await query.GroupBy(a => a.StudentId)
             .Select(g => new
             {
@@ -107,6 +119,10 @@ public sealed class AttendanceService : IAttendanceService
             x => x.Total == 0 ? 0 : Math.Round(x.Earned * 100m / x.Total, 1));
     }
 
+    public async Task<AttendanceWeights> GetWeightsAsync(CancellationToken cancellationToken = default) => new(
+        await GetWeightAsync("Attendance.LateWeight", 0.5m, cancellationToken),
+        await GetWeightAsync("Attendance.ExcusedWeight", 1m, cancellationToken));
+
     private async Task<decimal> GetWeightAsync(
         string key, decimal fallback, CancellationToken cancellationToken)
     {
@@ -118,3 +134,5 @@ public sealed class AttendanceService : IAttendanceService
             && parsed is >= 0 and <= 1 ? parsed : fallback;
     }
 }
+
+public sealed record AttendanceWeights(decimal Late, decimal Excused);

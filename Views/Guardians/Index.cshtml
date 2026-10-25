@@ -1,11 +1,66 @@
-@model IReadOnlyList<Student_Management_System.Models.GuardianProfile>
+﻿@model Student_Management_System.Models.PagedResult<Student_Management_System.Models.GuardianProfile>
 @using Student_Management_System.Models
 @{
     ViewData["Title"] = "Guardians";
     var students = ViewBag.Students as IEnumerable<Student> ?? [];
+    var invitations = ViewBag.InvitationStatuses as IReadOnlyDictionary<string, InvitationDeliveryStatus> ?? new Dictionary<string, InvitationDeliveryStatus>();
 }
-<div class="page-header"><div class="page-header-copy"><span class="eyebrow">People</span><h1>Guardians</h1><p>Create secure Guardian accounts and manage linked Students.</p></div></div>
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">People / Family access</span><h1>Guardians</h1><p>Manage family accounts and the academic and finance records they can access.</p></div></div>
 <div class="row g-3">
-<div class="col-xl-5"><section class="card section-card"><h2>Create Guardian</h2><form asp-action="Create" method="post" class="row g-3"><div class="col-12"><label class="form-label" for="field-guardians-index-fullname-586">Full name</label><input id="field-guardians-index-fullname-586" name="fullName" class="form-control" required /></div><div class="col-12"><label class="form-label" for="field-guardians-index-email-710">Email</label><input id="field-guardians-index-email-710" name="email" type="email" class="form-control" required /></div><div class="col-md-6"><label class="form-label" for="field-guardians-index-relationship-842">Relationship</label><input id="field-guardians-index-relationship-842" name="relationship" class="form-control" required /></div><div class="col-md-6"><label class="form-label" for="field-guardians-index-phone-975">Phone</label><input id="field-guardians-index-phone-975" name="phone" class="form-control" /></div><div class="col-12"><label class="form-label" for="field-guardians-index-studentid-1083">Student</label><select id="field-guardians-index-studentid-1083" name="studentId" class="form-select" required>@foreach(var s in students){<option value="@s.Id">@s.FullName</option>}</select></div><div class="col-12 form-check"><input class="form-check-input" type="checkbox" id="guardianFinanceAccess" name="canViewFinance" value="true" checked /><label class="form-check-label" for="guardianFinanceAccess">Allow finance access</label></div><div class="col-12"><button class="btn btn-primary" type="submit">Create and invite</button></div></form></section></div>
-<div class="col-xl-7"><section class="card table-card"><div class="table-responsive"><table class="table"><thead><tr><th>Guardian</th><th>Relationship</th><th>Linked Students</th></tr></thead><tbody>@foreach(var g in Model){<tr><td><strong>@g.FullName</strong><small class="d-block text-muted">@g.Email</small></td><td>@g.Relationship</td><td>@string.Join(", ", g.StudentLinks.Select(l=>l.Student.FullName))</td></tr>}</tbody></table></div></section></div>
+    <div class="col-xl-4">
+        <section class="card section-card" aria-labelledby="createGuardianHeading">
+            <h2 id="createGuardianHeading">Create guardian</h2><p class="text-muted">The guardian receives a secure activation invitation.</p>
+            <form asp-action="Create" method="post" class="row g-3" data-track-changes>
+                <div class="col-12"><label class="form-label required" for="guardianName">Full name</label><input id="guardianName" name="fullName" class="form-control" maxlength="160" required autocomplete="name" /></div>
+                <div class="col-12"><label class="form-label required" for="guardianEmail">Email</label><input id="guardianEmail" name="email" type="email" class="form-control" maxlength="256" required autocomplete="email" /></div>
+                <div class="col-md-6"><label class="form-label required" for="guardianRelationship">Relationship</label><input id="guardianRelationship" name="relationship" class="form-control" maxlength="40" required /></div>
+                <div class="col-md-6"><label class="form-label" for="guardianPhone">Phone</label><input id="guardianPhone" name="phone" type="tel" class="form-control" maxlength="30" autocomplete="tel" /></div>
+                <div class="col-12"><label class="form-label required" for="guardianStudent">Student</label><select id="guardianStudent" name="studentId" class="form-select" required><option value="">Select a student</option>@foreach(var student in students){<option value="@student.Id">@student.FullName · #@student.Id</option>}</select></div>
+                <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="guardianFinanceAccess" name="canViewFinance" value="true" checked /><label class="form-check-label" for="guardianFinanceAccess">Allow finance access</label></div></div>
+                <div class="col-12"><button class="btn btn-primary w-100" type="submit">Create and invite</button></div>
+            </form>
+        </section>
+    </div>
+    <div class="col-xl-8">
+        <section class="card table-card" aria-label="Guardian directory">
+            <div class="table-toolbar"><form method="get" class="d-flex gap-2 flex-wrap"><label class="visually-hidden" for="guardianSearch">Search guardians by name or email</label><input id="guardianSearch" name="search" type="search" value="@Model.Search" class="form-control" placeholder="Search name or email" /><button class="btn btn-primary" type="submit">Search</button><a asp-action="Index" class="btn btn-outline-secondary">Reset</a></form><partial name="_PageSizeSelector" model="Model.PageSize" /></div>
+            @if(Model.TotalCount == 0){<div class="empty-state"><h2>No guardians found</h2><p>Try another search or create a guardian account.</p></div>}
+            else{
+                <div class="table-responsive"><table class="table"><caption class="visually-hidden">Guardians and their active student access permissions</caption><thead><tr><th scope="col">Guardian</th><th scope="col">Relationship</th><th scope="col">Student access</th></tr></thead><tbody>
+                @foreach(var guardian in Model.Items){
+                    var links = guardian.StudentLinks.Where(link => link.UnlinkedUtc == null).ToList();
+                    <tr><td><strong>@guardian.FullName</strong><small class="d-block text-muted">@guardian.Email</small><small class="d-block text-muted">Guardian #@guardian.Id</small></td><td>@guardian.Relationship</td><td>
+                        @if(links.Count == 0){<span class="text-muted">No active links</span>}
+                        @foreach(var link in links){
+                            <details class="mb-2"><summary>@link.Student.FullName · @link.Relationship</summary><div class="p-2"><p class="small">Academic access: @(link.CanViewAcademics ? "Allowed" : "Denied") · Finance access: @(link.CanViewFinance ? "Allowed" : "Denied")</p><form asp-action="Unlink" asp-route-id="@link.Id" method="post"><label for="unlinkReason_@link.Id" class="form-label required">Reason for removing access</label><input id="unlinkReason_@link.Id" name="reason" class="form-control mb-2" maxlength="1000" required /><button class="btn btn-sm btn-outline-danger" type="submit" data-confirm="Remove this guardian's access to the student?">Remove access</button></form></div></details>
+                        }
+                        @if(invitations.TryGetValue(guardian.UserId, out var invitation)){
+                            <details class="mt-2"><summary>Account invitation</summary><partial name="_InvitationStatus" model="invitation" />
+                                @if(invitation.CanResend){<form asp-controller="Account" asp-action="ResendActivation" method="post" class="mt-2"><input type="hidden" name="email" value="@guardian.Email" /><button type="submit" class="btn btn-sm btn-outline-primary">Request new invitation</button></form>}
+                            </details>
+                        }
+                    </td></tr>
+                }
+                </tbody></table></div>
+            }
+            <partial name="_ServerPagination" model="Model" />
+        </section>
+        @if(Model.Items.Count > 0){
+            <section class="card section-card mt-3" aria-labelledby="linkGuardianHeading"><h2 id="linkGuardianHeading">Link an existing guardian</h2><p class="text-muted">Choose a guardian from this page. Search the directory to find another guardian.</p>
+                <form asp-action="Link" method="post" class="row g-3">
+                    <div class="col-md-6"><label class="form-label required" for="linkGuardian">Guardian</label><select id="linkGuardian" name="guardianId" class="form-select" required><option value="">Select guardian</option>@foreach(var guardian in Model.Items){<option value="@guardian.Id">@guardian.FullName · #@guardian.Id</option>}</select></div>
+                    <div class="col-md-6"><label class="form-label required" for="linkStudent">Student</label><select id="linkStudent" name="studentId" class="form-select" required><option value="">Select student</option>@foreach(var student in students){<option value="@student.Id">@student.FullName · #@student.Id</option>}</select></div>
+                    <div class="col-md-6"><label class="form-label required" for="linkRelationship">Relationship</label><input id="linkRelationship" name="relationship" class="form-control" maxlength="40" required /></div>
+                    <div class="col-md-6"><label class="form-label" for="linkPreferences">Communication preferences</label><input id="linkPreferences" name="communicationPreferences" class="form-control" maxlength="500" /></div>
+                    <div class="col-12 d-flex flex-wrap gap-3">
+                        <div class="form-check"><input id="linkPrimary" name="isPrimary" value="true" type="checkbox" class="form-check-input" /><label for="linkPrimary" class="form-check-label">Primary contact</label></div>
+                        <div class="form-check"><input id="linkAcademic" name="canViewAcademics" value="true" type="checkbox" class="form-check-input" checked /><label for="linkAcademic" class="form-check-label">Academic access</label></div>
+                        <div class="form-check"><input id="linkFinance" name="canViewFinance" value="true" type="checkbox" class="form-check-input" /><label for="linkFinance" class="form-check-label">Finance access</label></div>
+                        <div class="form-check"><input id="linkEmergency" name="canReceiveEmergencyContact" value="true" type="checkbox" class="form-check-input" checked /><label for="linkEmergency" class="form-check-label">Emergency messages</label></div>
+                    </div>
+                    <div class="col-12"><button type="submit" class="btn btn-primary">Link student</button></div>
+                </form>
+            </section>
+        }
+    </div>
 </div>

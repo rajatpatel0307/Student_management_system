@@ -207,7 +207,7 @@ public sealed class AttendanceCorrection
     [Required, MaxLength(1000)] public string Reason { get; set; } = "";
     [Required, MaxLength(450)] public string RequestedByUserId { get; set; } = "";
     public DateTime RequestedUtc { get; set; } = DateTime.UtcNow;
-    public ApprovalStatus Status { get; set; } = ApprovalStatus.Pending;
+    [ConcurrencyCheck] public ApprovalStatus Status { get; set; } = ApprovalStatus.Pending;
     [MaxLength(450)] public string? ReviewedByUserId { get; set; }
     [MaxLength(1000)] public string? ReviewComment { get; set; }
     public DateTime? ReviewedUtc { get; set; }

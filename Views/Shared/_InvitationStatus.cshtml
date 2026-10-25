@@ -1,0 +1,12 @@
+@model Student_Management_System.Models.InvitationDeliveryStatus
+@{
+    var tone = Model.State is "Activated" or "Delivered" ? "success" : Model.State is "Needs attention" or "Expired" or "Disabled" ? "warning" : "info";
+}
+<div class="invitation-status" role="status">
+    <span class="badge bg-@tone">@Model.State</span>
+    @if(Model.ExpiresUtc.HasValue && Model.State != "Activated") { <small class="d-block text-muted">Expires @Model.ExpiresUtc.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small> }
+    @if(Model.LastSentUtc.HasValue) { <small class="d-block text-muted">Last delivered @Model.LastSentUtc.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small> }
+    @if(Model.NextAttemptUtc.HasValue && Model.State == "Retry scheduled") { <small class="d-block text-muted">Next attempt @Model.NextAttemptUtc.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small> }
+    @if(Model.State == "Needs attention") { <p class="small mb-0">Delivery needs administrator attention. Verify delivery settings or request a new invitation.</p> }
+    @if(Model.State == "Queued") { <p class="small text-muted mb-0">Waiting for email delivery. No further action is needed.</p> }
+</div>

@@ -18,6 +18,8 @@ using Student_Management_System.Services;
 var assertions = 0;
 void Check(bool condition, string message) { assertions++; if (!condition) throw new Exception(message); }
 await StudentDirectoryVerification.RunAsync(Check);
+await AuthenticationVerification.RunAsync(Check);
+ProductionConfigurationVerification.Run(Check);
 var autoInput = new StaffInput { FullName = "Auto identifiers", Email = "auto@test.invalid", Role = "Librarian" };
 Check(Validator.TryValidateObject(autoInput, new ValidationContext(autoInput), [], true), "Staff creation must not require a supplied employee ID or username.");
 autoInput.Password = "Staff!1234"; autoInput.ConfirmPassword = autoInput.Password;
@@ -238,6 +240,21 @@ try
     db.Students.Add(student);
     db.UserCampusMemberships.Add(new UserCampusMembership { UserId = studentUser.Id, CampusId = campus.Id, IsDefault = true });
     await db.SaveChangesAsync();
+    await AssessmentConcurrencyVerification.RunAsync(connection, student.Id, fixtureClass.Id, Check);
+    db.TeacherClassAssignments.Add(new TeacherClassAssignment { TeacherId = teacher.Id, ClassId = fixtureClass.Id });
+    db.TeacherSubjectAssignments.Add(new TeacherSubjectAssignment { TeacherId = teacher.Id, SubjectId = await db.Subjects.Select(subject => subject.Id).FirstAsync() });
+    await db.SaveChangesAsync();
+    await StudentArchiveVerification.RunAsync(db, users, sp.GetRequiredService<IUserStore<ApplicationUser>>(), fixtureClass.Id, section.Id, Check);
+    await AdmissionsRegisterVerification.RunAsync(db, campus.Id, admin.Id, Check);
+    await GuardianRelationshipVerification.RunAsync(db, student.Id, admin.Id, Check, users, roles);
+    await AdmissionWorkflowVerification.RunAsync(db, users, roles, campus.Id, admin.Id, Check);
+    await InvitationDeliveryVerification.RunAsync(connection, db, users, Check);
+    await AuthenticationHttpVerification.RunAsync(connection, db, users, roles, Check);
+    await StudentHistoryVerification.RunAsync(db, student.Id, Check);
+    await AcademicScopeVerification.RunAsync(db, campus.Id, fixtureClass.Id, section.Id, Check);
+    await FinancialScopeVerification.RunAsync(db, admin.Id, Check);
+    await AttendanceScopeVerification.RunAsync(db, Check);
+    await FinanceWorkflowVerification.RunAsync(db, admin.Id, Check);
     var room = new HostelRoom { HostelName = "Test hostel", RoomNumber = "101", Capacity = 2 };
     db.HostelAllocations.Add(new HostelAllocation { StudentId = student.Id, HostelRoom = room, StartsOn = DateTime.Today.AddDays(-1) });
     await db.SaveChangesAsync();
@@ -268,7 +285,10 @@ try
     var staffApi = new StaffApiController(db, repository, service, users, sp.GetRequiredService<AuditService>(), null!) { ControllerContext = Context(admin, "Admin") };
     var loginActivity = await staffApi.Activity(first.Id) as JsonResult;
     Check(loginActivity != null && Json(loginActivity.Value!).GetProperty("logins")[0].GetProperty("createdUtc").GetString()!.EndsWith("Z"), "Login timestamps must retain UTC offset information after SQL materialization.");
-    await StaffUiTests.NativePageVerification.RunAsync(connection, admin.Id, legacy.Id, Check);
+    await StaffUiTests.NativePageVerification.RunAsync(connection, admin.Id, legacy.Id, Check, student.Id);
+    await PermissionDisplayVerification.RunAsync(db, admin.Id, Check);
+    if (args.Contains("--benchmark-baseline") || args.Contains("--benchmark-after"))
+        await PermissionPerformanceVerification.RunAsync(connection, admin.Id, args.Contains("--benchmark-baseline") ? "before" : "after", Check);
     Console.WriteLine($"PASS: {assertions} total assertions including SQL Server, Identity, role boundaries, operational workflows and authenticated native Razor page rendering.");
 }
 finally

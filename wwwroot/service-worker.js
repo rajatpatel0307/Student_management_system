@@ -1,8 +1,9 @@
-const CACHE_NAME = "eduflow-static-v4";
+const CACHE_NAME = "eduflow-static-v5";
 const STATIC_ASSETS = [
     "/offline.html",
     "/css/site.css",
     "/js/site.js",
+    "/js/preferences.js",
     "/icons/eduflow.svg"
 ];
 
@@ -14,7 +15,7 @@ self.addEventListener("install", event => {
 self.addEventListener("activate", event => {
     event.waitUntil(
         caches.keys()
-            .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
+            .then(keys => Promise.all(keys.filter(key => key.startsWith("eduflow-static-") && key !== CACHE_NAME).map(key => caches.delete(key))))
             .then(() => self.clients.claim())
     );
 });
@@ -51,11 +52,17 @@ self.addEventListener("fetch", event => {
     }
 
     if (!["style", "script", "font", "image"].includes(request.destination)) return;
+    // Only public asset directories belong in the offline cache. An image/script
+    // destination alone does not establish that a controller response is public.
+    if (!/^\/(css|js|lib|icons)\//i.test(requestUrl.pathname) && requestUrl.pathname !== "/favicon.ico") return;
     event.respondWith(
         caches.match(request).then(cached => cached || fetch(request).then(response => {
-            if (response.ok) {
+            const cacheControl = response.headers.get("Cache-Control") || "";
+            if (response.ok && !response.redirected && !/\b(no-store|private|no-cache)\b/i.test(cacheControl)) {
                 const copy = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+                event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(request, copy)).catch(() => {
+                    // Quota or storage restrictions must not fail an online response.
+                }));
             }
             return response;
         }))

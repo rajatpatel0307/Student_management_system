@@ -31,6 +31,14 @@ public sealed class ReportingService : IReportingService
     {
         query.Normalize();
         EnsureReportAccess(query.ReportType, user);
+        var modulePermission = query.ReportType switch
+        {
+            "Finance" => "fees.view", "Admissions" or "SeatUtilization" => "admission.view",
+            "Results" => "marks.view", "Attendance" or "LowAttendance" => "attendance.view",
+            "Enrollment" => "student.view", _ => null
+        };
+        if (modulePermission != null && await new PermissionService(_db).IsExplicitlyDeniedAsync(user, modulePermission, cancellationToken))
+            throw new UnauthorizedAccessException();
         return query.ReportType switch
         {
             "Enrollment" => await EnrollmentAsync(query, user, cancellationToken),
@@ -131,16 +139,7 @@ public sealed class ReportingService : IReportingService
             .Include(m => m.Student).ThenInclude(s => s.Department)
             .Include(m => m.Subject).Include(m => m.Exam)
             .Where(m => m.IsApproved && m.Exam.Status == ExamLifecycle.Published);
-        if (user.IsInRole("HOD"))
-        {
-            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            query = query.Where(m => m.Student.Department!.HodTeacher!.UserId == userId);
-        }
-        else if (user.IsInRole("Professor"))
-        {
-            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            query = query.Where(m => m.Subject.TeacherAssignments.Any(a => a.Teacher.UserId == userId));
-        }
+        query = await new ResultService(_db, new PermissionService(_db)).ScopeAsync(query, user, cancellationToken);
         if (request.DepartmentId.HasValue)
             query = query.Where(m => m.Student.DepartmentId == request.DepartmentId);
         if (request.SubjectId.HasValue) query = query.Where(m => m.SubjectId == request.SubjectId);
@@ -174,6 +173,8 @@ public sealed class ReportingService : IReportingService
         var query = _db.FinancialTransactions.AsNoTracking()
             .Include(t => t.Student).ThenInclude(s => s.Department)
             .Include(t => t.Fee).AsQueryable();
+        var allowedStudents = FinancialRecordScope.Students(_db, user).Select(student => student.Id);
+        query = query.Where(transaction => allowedStudents.Contains(transaction.StudentId));
         if (request.DepartmentId.HasValue)
             query = query.Where(t => t.Student.DepartmentId == request.DepartmentId);
         if (request.From.HasValue) query = query.Where(t => t.CreatedUtc >= request.From.Value.Date);
@@ -205,6 +206,8 @@ public sealed class ReportingService : IReportingService
             throw new UnauthorizedAccessException();
         var query = _db.AdmissionApplications.AsNoTracking()
             .Include(a => a.Department).Include(a => a.AcademicYear).AsQueryable();
+        var allowedCampuses = await new CampusScopeService(_db).AllowedCampusIdsAsync(user, cancellationToken);
+        query = query.Where(application => allowedCampuses.Contains(application.CampusId ?? 0));
         if (request.DepartmentId.HasValue) query = query.Where(a => a.DepartmentId == request.DepartmentId);
         if (request.AcademicYearId.HasValue) query = query.Where(a => a.AcademicYearId == request.AcademicYearId);
         if (request.From.HasValue) query = query.Where(a => a.CreatedUtc >= request.From.Value.Date);
@@ -293,6 +296,7 @@ public sealed class ReportingService : IReportingService
             .Include(a => a.Student).ThenInclude(s => s.Department)
             .AsQueryable();
         query = await ScopeAttendanceAsync(query, user, cancellationToken);
+        var weights = await new AttendanceService(_db).GetWeightsAsync(cancellationToken);
         if (request.DepartmentId.HasValue)
             query = query.Where(a => a.Student.DepartmentId == request.DepartmentId);
         if (request.ClassId.HasValue)
@@ -309,9 +313,7 @@ public sealed class ReportingService : IReportingService
             {
                 g.Key.StudentId, g.Key.FullName, g.Key.Department,
                 Sessions = g.Count(),
-                Present = g.Count(a => a.Status == "Present" ||
-                                       a.Status == "Late" ||
-                                       a.Status == "Excused")
+                Present = g.Sum(a => a.Status == "Present" ? 1m : a.Status == "Late" ? weights.Late : a.Status == "Excused" ? weights.Excused : 0m)
             })
             .Where(x => x.Sessions > 0 && x.Present * 100m / x.Sessions < 75m)
             .OrderBy(x => x.FullName).Take(10000)
@@ -492,9 +494,9 @@ public sealed class ReportingService : IReportingService
         var departmentId = await _db.Teachers.AsNoTracking()
             .Where(t => t.UserId == userId && t.TeacherType == TeacherType.HOD)
             .Select(t => t.DepartmentId).SingleOrDefaultAsync(cancellationToken);
-        return departmentId.HasValue
-            ? query.Where(e => e.Student.DepartmentId == departmentId)
-            : query.Where(_ => false);
+        if (!departmentId.HasValue) return query.Where(_ => false);
+        var studentIds = StudentRecordScope.ForHod(_db, _db.Students.Where(student => !student.IsArchived), userId, departmentId.Value).Select(student => student.Id);
+        return query.Where(enrollment => studentIds.Contains(enrollment.StudentId));
     }
 
     private async Task<IQueryable<Attendance>> ScopeAttendanceAsync(
@@ -502,20 +504,7 @@ public sealed class ReportingService : IReportingService
         ClaimsPrincipal user,
         CancellationToken cancellationToken)
     {
-        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (user.IsInRole("Professor"))
-            return query.Where(a => a.Teacher!.UserId == userId ||
-                                    a.Subject!.TeacherAssignments.Any(x => x.Teacher.UserId == userId));
-        if (user.IsInRole("HOD"))
-        {
-            var departmentId = await _db.Teachers.AsNoTracking()
-                .Where(t => t.UserId == userId && t.TeacherType == TeacherType.HOD)
-                .Select(t => t.DepartmentId).SingleOrDefaultAsync(cancellationToken);
-            return departmentId.HasValue
-                ? query.Where(a => a.Student.DepartmentId == departmentId)
-                : query.Where(_ => false);
-        }
-        return query;
+        return await AcademicRecordScope.AttendanceAsync(_db, query, user);
     }
 
     private static ReportDataset Dataset(
@@ -525,13 +514,21 @@ public sealed class ReportingService : IReportingService
         string scope) =>
             new(title, headers, rows.ToList(), scope);
 
-    private static void EnsureReportAccess(string reportType, ClaimsPrincipal user)
+    public static IReadOnlyList<string> AvailableReportTypes(ClaimsPrincipal user) => new[]
     {
-        if (user.IsInRole("SuperAdmin") || user.IsInRole("Admin")) return;
-        var permitted = reportType switch
+        "Enrollment", "Attendance", "LowAttendance", "Results", "Finance", "Admissions", "Workload", "Library",
+        "AssignmentCompletion", "Leave", "SeatUtilization", "LoginHistory", "AuditActivity"
+    }.Where(type => CanAccessReport(type, user)).ToArray();
+
+    private static bool CanAccessReport(string reportType, ClaimsPrincipal user)
+    {
+        if (user.Identity?.IsAuthenticated != true) return false;
+        if (user.IsInRole("SuperAdmin") || user.IsInRole("Admin")) return true;
+        return reportType switch
         {
             "Enrollment" or "Workload" => user.IsInRole("HOD"),
-            "Attendance" or "LowAttendance" or "Results" or
+            "Results" => user.IsInRole("HOD") || user.IsInRole("Professor") || user.IsInRole("ExaminationOfficer"),
+            "Attendance" or "LowAttendance" or
             "AssignmentCompletion" or "Leave" =>
                 user.IsInRole("HOD") || user.IsInRole("Professor"),
             "Finance" => user.IsInRole("Accountant"),
@@ -540,6 +537,9 @@ public sealed class ReportingService : IReportingService
             "LoginHistory" or "AuditActivity" => false,
             _ => false
         };
-        if (!permitted) throw new UnauthorizedAccessException();
+    }
+    private static void EnsureReportAccess(string reportType, ClaimsPrincipal user)
+    {
+        if (!AvailableReportTypes(user).Contains(reportType)) throw new UnauthorizedAccessException();
     }
 }

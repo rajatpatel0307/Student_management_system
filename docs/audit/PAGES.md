@@ -1,5 +1,40 @@
 # Razor page disposition inventory
 
+Phase 4: shared navigation permission lookups are batched; admission enrollment
+and pre-token invitation status now support durable recovery. Real finance
+issuance/payment/refund/reversal workflows have additional SQL/controller tests.
+These do not change the visual acceptance states below. All browser viewport
+acceptance remains BLOCKED. See [Phase 4](IMPLEMENTATION_PHASE4.md) and the
+[complete acceptance matrix](FINAL_ACCEPTANCE_MATRIX.md).
+
+Phase 3 source count: **167 Razor files**, including the new invitation-status
+partial; 49 controllers and 116 DbSets remain. See
+[IMPLEMENTATION_PHASE3.md](IMPLEMENTATION_PHASE3.md) and redesign specs 08–11.
+These are partial page acceptances, not completed visual redesigns:
+
+| Existing page / route | Phase 3 acceptance |
+| --- | --- |
+| Admissions Details `/Admissions/Details/{id}` | Permission/delivery implementation; SQL status and real Razor checks; full interaction/visual pending |
+| Guardians Index `/Guardians` | Delivery status/resend implementation; relationship regressions and real Razor checks; browser pending |
+| Attendance Mark `/Attendance/Mark` | Scoped roster/safe entity persistence/empty state; SQL and rendered script checks; browser pending |
+| Attendance Edit `/Attendance/Edit/{id}` | Revision and validation feedback; SQL denied/stale-edit checks; full success UI/browser pending |
+| Attendance Sessions `/Attendance/Sessions` | Shared server paging/semantic approval table; SQL mixed-scope denial and populated Razor checks; browser pending |
+| Finance Index `/Finance` | Scoped ledger and permission-aware actions; SQL record/command-denial checks; browser pending |
+| Finance Invoices `/Finance/Invoices` | Fixed shared pager/issuance visibility; populated Razor check; successful issuance UI/browser pending |
+| Reports Index `/Reports` | Allowed type/default/saved-filter implementation; SQL scope/ownership and populated Razor checks; full export/browser pending |
+| Communications Index `/Communications` | Shared pager reference fixed; compilation only, runtime/browser pending |
+| Promotions Index `/Promotions` | Shared pager reference fixed; compilation only, runtime/browser pending |
+
+All other inventory rows retain their prior status. The two permission matrices
+describe policy/role boundaries, not page completion or exhaustive record access.
+
+Phase 2 implementation and acceptance are recorded in
+[IMPLEMENTATION_PHASE2.md](IMPLEMENTATION_PHASE2.md) and redesign specs 04–07.
+Student history, admissions, guardians, marks entry/edit and attendance entry have
+new source changes and executable SQL/HTTP/Razor checks. Their visual viewport
+acceptance is still pending. Other rows below are an inventory, not completed
+individual redesigns or runtime acceptance.
+
 All application views are retained in this pass. Improve means retain purpose and route while reviewing the implementation; review for merge means an overlapping surface needs a dependency/permission comparison before consolidation. Shared partials are components, not independent pages. No deletion is authorized by this inventory.
 
 | View | Disposition | Review dependency |

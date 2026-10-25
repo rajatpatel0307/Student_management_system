@@ -71,6 +71,12 @@ public sealed class ManagementHeaderViewModel
 
 public sealed class StudentDetailsViewModel
 {
+    public PagedResult<Attendance> AttendancePage { get; init; } = new();
+    public PagedResult<Mark> MarksPage { get; init; } = new();
+    public int PresentCount { get; init; }
+    public int AbsentCount { get; init; }
+    public int LateCount { get; init; }
+    public int ExcusedCount { get; init; }
     public Student Student { get; init; } = null!;
     public IReadOnlyList<StudentClassEnrollment> Enrollments { get; init; } = Array.Empty<StudentClassEnrollment>();
     public IReadOnlyList<StudentSubjectEnrollment> Subjects { get; init; } = Array.Empty<StudentSubjectEnrollment>();

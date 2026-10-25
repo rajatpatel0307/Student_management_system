@@ -1,5 +1,15 @@
 # Incremental page redesign
 
+Phase 3 specifications:
+[invitations](08-phase3-invitations.md),
+[attendance](09-phase3-attendance.md),
+[finance/reports](10-phase3-finance-reports.md), and
+[permission enforcement](11-phase3-permissions.md).
+Current count is 167 Razor files, including partials. The historical roadmap
+below is preserved; current per-page acceptance is in
+[PAGES.md](../audit/PAGES.md) and
+[IMPLEMENTATION_PHASE3.md](../audit/IMPLEMENTATION_PHASE3.md).
+
 Use the existing EduFlow design system and real MVC/EF data. Finish a page's
 specification, implementation, shared-contract review, and acceptance record
 before treating it as complete. No replacement frontend or duplicate API layer.

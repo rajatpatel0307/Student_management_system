@@ -32,6 +32,6 @@
             <tr><td><a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.BatchNumber</a></td><td>@item.SourceAcademicYear.Name · @item.SourceClass.Name / @item.SourceSection.Name</td><td>@item.DestinationAcademicYear.Name</td><td>@item.Entries.Count</td><td><span class="badge bg-info">@item.Status</span></td><td>@item.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
         }
         </tbody></table></div>
-        <partial name="_Pagination" model="Model" />
+        <partial name="_ServerPagination" model="Model" />
     }
 </section>

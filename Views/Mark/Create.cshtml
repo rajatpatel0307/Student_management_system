@@ -41,7 +41,8 @@ else
         <section class="card table-card">
             <div class="table-responsive">
                 <table class="table align-middle" id="marksTable">
-                    <thead><tr><th>Student</th><th>Section</th><th>Marks / @Model.MaximumMarks</th><th>Grade preview</th><th>Result</th><th>Remarks</th></tr></thead>
+                    <caption class="visually-hidden">Marks entry for the selected exam and subject. Approved records are read-only.</caption>
+                    <thead><tr><th scope="col">Student</th><th scope="col">Section</th><th scope="col">Marks / @Model.MaximumMarks</th><th scope="col">Grade preview</th><th scope="col">Result</th><th scope="col">Remarks</th></tr></thead>
                     <tbody>
                     @for (var i = 0; i < Model.Entries.Count; i++)
                     {
@@ -53,16 +54,17 @@ else
                                 <input asp-for="Entries[i].StudentName" type="hidden" />
                                 <input asp-for="Entries[i].SectionName" type="hidden" />
                                 <input asp-for="Entries[i].IsApproved" type="hidden" />
+                                <input name="Entries[@i].ExpectedUpdatedUtc" value="@entry.ExpectedUpdatedUtc?.ToString("O")" type="hidden" />
                             </td>
                             <td><span class="badge bg-primary">@entry.SectionName</span></td>
                             <td>
                                 @if (entry.IsApproved)
                                 {
-                                    <input asp-for="Entries[i].Score" class="form-control marks-input" type="number" min="0" max="@Model.MaximumMarks" step="0.01" readonly data-score />
+                                    <input asp-for="Entries[i].Score" class="form-control marks-input" type="number" min="0" max="@Model.MaximumMarks" step="0.01" readonly data-score aria-label="Score for @entry.StudentName" />
                                 }
                                 else
                                 {
-                                    <input asp-for="Entries[i].Score" class="form-control marks-input" type="number" min="0" max="@Model.MaximumMarks" step="0.01" placeholder="—" data-score />
+                                    <input asp-for="Entries[i].Score" class="form-control marks-input" type="number" min="0" max="@Model.MaximumMarks" step="0.01" placeholder="—" data-score aria-label="Score for @entry.StudentName" />
                                 }
                             </td>
                             <td><span class="grade-preview" data-grade>—</span></td>
@@ -70,11 +72,11 @@ else
                             <td>
                                 @if (entry.IsApproved)
                                 {
-                                    <input asp-for="Entries[i].Remarks" class="form-control" maxlength="500" readonly />
+                                    <input asp-for="Entries[i].Remarks" class="form-control" maxlength="500" readonly aria-label="Remarks for @entry.StudentName" />
                                 }
                                 else
                                 {
-                                    <input asp-for="Entries[i].Remarks" class="form-control" maxlength="500" placeholder="Optional remark" />
+                                    <input asp-for="Entries[i].Remarks" class="form-control" maxlength="500" placeholder="Optional remark" aria-label="Remarks for @entry.StudentName" />
                                 }
                             </td>
                         </tr>
@@ -102,9 +104,15 @@ else
     if (!form) return;
     const scores = [...form.querySelectorAll('[data-score]')];
     const draftKey = `marks:@Model.SubjectId:@Model.ExamId`;
+    const gradeScale = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.GradeScale));
+    const roster = [...form.querySelectorAll('input[name$=".StudentId"]')].map(input =>
+        `${input.value}:${form.elements[input.name.replace('.StudentId', '.ExpectedUpdatedUtc')].value}`).join('|');
     function grade(score) {
         if (score === '' || Number.isNaN(Number(score))) return '—';
         const value = Number(score) * 100 / Number('@Model.MaximumMarks.ToString(System.Globalization.CultureInfo.InvariantCulture)');
+        if (!Number.isFinite(value) || value < 0 || value > 100) return '—';
+        const boundary = gradeScale?.find(item => value >= item.minimumPercent && value <= item.maximumPercent);
+        if (boundary) return boundary.grade;
         return value >= 90 ? 'A+' : value >= 80 ? 'A' : value >= 70 ? 'B' : value >= 60 ? 'C' : value >= 50 ? 'D' : 'F';
     }
     function refresh() {
@@ -128,21 +136,27 @@ else
     }
     scores.forEach(input => input.addEventListener('input', refresh));
     document.getElementById('saveMarksDraft').addEventListener('click', () => {
-        const values = [...new FormData(form).entries()].filter(([name]) => name.includes('Entries['));
-        localStorage.setItem(draftKey, JSON.stringify(values));
-        window.smsUi.showToast('Marks draft saved on this device.', 'success');
+        const values = [...form.querySelectorAll('input[name$=".StudentId"]')].map(input => {
+            const field = suffix => form.elements[input.name.replace('.StudentId', suffix)];
+            return { studentId: input.value, score: field('.Score').value, remarks: field('.Remarks').value };
+        });
+        const saved = window.EduFlowDrafts.save(draftKey, roster, values);
+        window.smsUi.showToast(saved ? 'Marks draft saved for this account in this tab for up to four hours.' : 'Draft storage is unavailable. Keep this form open until you save.', saved ? 'success' : 'warning');
     });
     try {
-        const values = JSON.parse(localStorage.getItem(draftKey));
-        if (values) {
-            values.forEach(([name, value]) => {
-                const input = form.elements[name];
-                if (input && !input.readOnly && value !== '') input.value = value;
+        const values = window.EduFlowDrafts.load(draftKey, roster);
+        if (Array.isArray(values)) {
+            values.forEach(item => {
+                const id = [...form.querySelectorAll('input[name$=".StudentId"]')].find(input => input.value === item.studentId);
+                if (!id) return;
+                for (const [suffix, value] of [['.Score', item.score], ['.Remarks', item.remarks]]) {
+                    const input = form.elements[id.name.replace('.StudentId', suffix)];
+                    if (input && !input.readOnly && typeof value === 'string') input.value = value;
+                }
             });
             window.smsUi.showToast('Your saved marks draft was restored.', 'info');
         }
     } catch {}
-    form.addEventListener('submit', () => localStorage.removeItem(draftKey));
     refresh();
 })();
 </script>

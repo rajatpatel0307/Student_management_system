@@ -1,5 +1,39 @@
 # Student Management System
 
+The [Phase 4 report](docs/audit/IMPLEMENTATION_PHASE4.md),
+[acceptance matrix](docs/audit/FINAL_ACCEPTANCE_MATRIX.md) and
+[production runbook](docs/deployment/PRODUCTION_READINESS.md) record the latest
+fixes and release blockers. The final suite passes 9,242 SQL/HTTPS/Razor assertions,
+131 non-SQL assertions and 35 JavaScript tests. Release licensing and browser/full
+module acceptance still prevent production approval.
+
+Run all local quality gates with
+`powershell -NoProfile -File scripts/Verify-Quality.ps1 -Integration -Publish`.
+It uses only disposable integration databases, reports each result and refuses
+artifact creation after a failed gate. It never deploys. Omit `-Integration` only
+when SQL checks are intentionally being recorded as Not Run.
+
+The [Phase 3 continuation](docs/audit/IMPLEMENTATION_PHASE3.md) adds protected
+retryable invitation delivery, expanded permission matrices, finance/attendance
+record scoping, stale-edit protection and selected Razor improvements. Page and
+visual acceptance limits remain explicit; this is not a completed project claim.
+
+For invitation delivery, configure deployment-owned `ActivationDelivery:PublicOrigin`
+as the trusted HTTPS application URL, alongside existing SMTP and durable shared
+Data Protection configuration. Do not store secrets or license keys in source.
+New student/admission/guardian creation now saves a durable invitation recovery
+request in the account transaction. Older pending accounts without that event
+still require authorized resend; no bulk account/token backfill is performed.
+
+The [Phase 2 continuation report](docs/audit/IMPLEMENTATION_PHASE2.md) records
+transactional student archives, approval/edit concurrency protection, scoped
+assessment access, private tab drafts, paginated student history/admissions/
+guardians, and real SQL/HTTPS/Razor verification. Run the disposable integration
+suite with `dotnet run --project StaffTests/StaffTests.csproj --no-restore -- --integration`.
+It creates and removes only its uniquely named `EduFlowStaffTest_*` database.
+Release builds still require an appropriate Six Labors license. Browser viewport
+and accessibility acceptance remain open.
+
 The project now includes database-backed management summaries, server-side
 search/filtering/pagination, permission-aware related-record navigation and
 dedicated detail pages. The repository inspection, severity-ranked findings,
@@ -117,9 +151,9 @@ From this repository directory run:
 
 `dotnet build Student_Management_System.csproj --no-restore`
 
-The solution also references a sibling `Student_Management_System.Tests`
-project that is absent from this checkout; a solution-wide build currently
-fails for that reason. StaffTests is a console regression runner, not a
+The solution references the in-repository `StaffTests` project. The unavailable
+sibling test project has been replaced in the solution; its tests are not part
+of this checkout. StaffTests is a console regression runner, not a
 `dotnet test` discovery project. Its optional `--integration` mode requires
 a disposable SQL database. See [verification](docs/audit/VERIFICATION.md)
 for actual results and environment limitations.
@@ -131,6 +165,11 @@ Run `dotnet ef database update` against a verified backup before starting the
 updated application.
 
 ## Build output is locked
+
+Current implementation and check results are recorded in
+[the authentication, shell and assessment report](docs/audit/IMPLEMENTATION_20261024.md).
+Debug compilation succeeds with an ImageSharp license warning. Release builds
+require an appropriate Six Labors license; its build-time enforcement is retained.
 
 If a rebuild says `Student_Management_System.exe` is being used by another
 process—or reports that

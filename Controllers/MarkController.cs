@@ -44,8 +44,13 @@ public class MarkController : Controller
             return View(model);
 
         var subject = subjects.Single(s => s.Id == model.SubjectId);
-        var students = await _context.Students.Include(s => s.Section)
-            .Where(s => s.ClassId == subject.ClassId || s.SubjectEnrollments.Any(e => e.SubjectId == subject.Id))
+        ViewBag.GradeScale = await _context.GradeBoundaries.AsNoTracking()
+            .Where(g => g.IsActive && (g.DepartmentId == subject.DepartmentId || g.DepartmentId == null))
+            .OrderByDescending(g => g.DepartmentId.HasValue).ThenByDescending(g => g.MinimumPercent)
+            .Select(g => new { grade = g.Grade, minimumPercent = g.MinimumPercent, maximumPercent = g.MaximumPercent })
+            .ToListAsync();
+        var students = await (await EntryStudentsAsync()).Include(s => s.Section)
+            .Where(s => !s.IsArchived && (s.ClassId == subject.ClassId || s.SubjectEnrollments.Any(e => e.SubjectId == subject.Id)))
             .OrderBy(s => s.FullName)
             .ToListAsync();
         var existing = await _context.Marks
@@ -61,7 +66,8 @@ public class MarkController : Controller
                 SectionName = student.Section?.Name ?? "Unassigned",
                 Score = mark?.Score,
                 Remarks = mark?.Remarks,
-                IsApproved = mark?.IsApproved ?? false
+                IsApproved = mark?.IsApproved ?? false,
+                ExpectedUpdatedUtc = mark?.UpdatedUtc
             };
         }).ToList();
         ViewBag.SelectedSubject = subject;
@@ -94,14 +100,16 @@ public class MarkController : Controller
             ModelState.AddModelError("", $"Scores must be between 0 and {exam.MaximumMarks:0.##}.");
 
         var studentIds = model.Entries.Select(e => e.StudentId).Distinct().ToList();
-        var allowedStudentIds = await _context.Students
-            .Where(s => studentIds.Contains(s.Id) && (s.ClassId == subject.ClassId || s.SubjectEnrollments.Any(e => e.SubjectId == subject.Id)))
+        var allowedStudentIds = await (await EntryStudentsAsync())
+            .Where(s => !s.IsArchived && studentIds.Contains(s.Id) && (s.ClassId == subject.ClassId || s.SubjectEnrollments.Any(e => e.SubjectId == subject.Id)))
             .Select(s => s.Id)
             .ToListAsync();
         if (allowedStudentIds.Count != studentIds.Count) return Forbid();
         if (!ModelState.IsValid)
         {
-            TempData["Error"] = $"Some marks were invalid. Scores must be between 0 and {exam.MaximumMarks:0.##}.";
+            TempData["Error"] = ModelState.Values.SelectMany(value => value.Errors)
+                .Select(error => error.ErrorMessage).FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
+                ?? $"Some marks were invalid. Scores must be between 0 and {exam.MaximumMarks:0.##}.";
             return RedirectToAction(nameof(Create), new { subjectId = model.SubjectId, examId = model.ExamId });
         }
 
@@ -109,11 +117,14 @@ public class MarkController : Controller
         var existing = await _context.Marks
             .Where(m => m.SubjectId == model.SubjectId && m.ExamId == model.ExamId && studentIds.Contains(m.StudentId))
             .ToDictionaryAsync(m => m.StudentId);
+        var savedCount = 0;
         foreach (var entry in model.Entries.Where(e => e.Score.HasValue))
         {
             if (existing.TryGetValue(entry.StudentId, out var mark))
             {
                 if (mark.IsApproved) continue;
+                if (entry.ExpectedUpdatedUtc.HasValue)
+                    _context.Entry(mark).Property(m => m.UpdatedUtc).OriginalValue = entry.ExpectedUpdatedUtc.Value;
                 mark.Score = entry.Score!.Value;
                 mark.Grade = await _results.ResolveGradeAsync(
                     mark.Score, exam.MaximumMarks, model.SubjectId);
@@ -135,28 +146,40 @@ public class MarkController : Controller
                     EnteredByTeacherId = teacherId
                 });
             }
+            savedCount++;
         }
         await _context.SaveChangesAsync();
         await _audit.RecordAsync(
-            $"Saved {model.Entries.Count(e => e.Score.HasValue)} marks for exam {model.ExamId}",
+            $"Saved {savedCount} marks for exam {model.ExamId}",
             nameof(Mark),
             model.SubjectId);
-        TempData["Success"] = "Marks saved successfully.";
+        TempData["Success"] = $"Saved {savedCount} marks. Approved records were preserved.";
+        TempData["ClearDraft"] = $"marks:{model.SubjectId}:{model.ExamId}";
         return RedirectToAction(nameof(Create), new { subjectId = model.SubjectId, examId = model.ExamId });
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "HOD,Professor")]
-    public async Task<IActionResult> Create(Mark mark)
+    public async Task<IActionResult> Create(MarkEntryInputModel input)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var allowed = await _results.CanEditAsync(User, mark.SubjectId) &&
-            await _context.Subjects.AnyAsync(s => s.Id == mark.SubjectId &&
-                (s.Class.Students.Any(st => st.Id == mark.StudentId) ||
-                 s.StudentEnrollments.Any(e => e.StudentId == mark.StudentId)));
-        if (!allowed) return Forbid();
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var allowed = await _results.CanEditAsync(User, input.SubjectId) &&
+            await (await EntryStudentsAsync()).AnyAsync(s => s.Id == input.StudentId && !s.IsArchived &&
+                (_context.Subjects.Any(subject => subject.Id == input.SubjectId && subject.ClassId == s.ClassId) ||
+                 s.SubjectEnrollments.Any(e => e.SubjectId == input.SubjectId)));
+        if (!allowed) return Forbid();
+        // Only entry fields cross the request boundary. Approval, withholding,
+        // grace marks, audit identity and lifecycle state remain server-owned.
+        var mark = new Mark
+        {
+            StudentId = input.StudentId,
+            SubjectId = input.SubjectId,
+            ExamId = input.ExamId,
+            Score = input.Score!.Value,
+            Remarks = input.Remarks?.Trim()
+        };
         var exam = await _context.Exams.FindAsync(mark.ExamId);
         if (exam == null) return BadRequest("Exam not found.");
         if (exam.Status != ExamLifecycle.OpenForEntry)
@@ -168,9 +191,13 @@ public class MarkController : Controller
         mark.EnteredByTeacherId = await _context.Teachers.Where(t => t.UserId == userId).Select(t => (int?)t.Id).SingleOrDefaultAsync();
         var existing = await _context.Marks.SingleOrDefaultAsync(m =>
             m.StudentId == mark.StudentId && m.SubjectId == mark.SubjectId && m.ExamId == mark.ExamId);
+        if (existing?.IsApproved == true)
+            return Conflict("Approved marks require the correction workflow.");
         if (existing == null) _context.Marks.Add(mark);
         else
         {
+            if (input.ExpectedUpdatedUtc.HasValue)
+                _context.Entry(existing).Property(m => m.UpdatedUtc).OriginalValue = input.ExpectedUpdatedUtc.Value;
             existing.Score = mark.Score; existing.Grade = mark.Grade;
             existing.Remarks = mark.Remarks; existing.EnteredByTeacherId = mark.EnteredByTeacherId;
             existing.UpdatedUtc = DateTime.UtcNow;
@@ -195,12 +222,14 @@ public class MarkController : Controller
         var mark = await _context.Marks.Include(m => m.Student).Include(m => m.Exam)
             .SingleOrDefaultAsync(m => m.Id == id);
         if (mark == null) return NotFound();
+        if (!await (await _results.ScopeAsync(_context.Marks.Where(m => m.Id == id), User)).AnyAsync()) return Forbid();
         if (User.IsInRole("HOD"))
         {
             var departmentId = await _context.Teachers
                 .Where(t => t.UserId == uid && t.TeacherType == TeacherType.HOD)
                 .Select(t => t.DepartmentId).SingleOrDefaultAsync();
-            if (!departmentId.HasValue || mark.Student.DepartmentId != departmentId)
+            if (!departmentId.HasValue || mark.Student.DepartmentId != departmentId ||
+                !await (await _results.ScopeAsync(_context.Marks.Where(m => m.Id == id), User)).AnyAsync())
                 return Forbid();
         }
         if (mark.Exam.Status is not (ExamLifecycle.OpenForEntry or ExamLifecycle.Locked))
@@ -208,6 +237,7 @@ public class MarkController : Controller
         mark.IsApproved = true;
         mark.ApprovedByUserId = uid;
         mark.ApprovedUtc = DateTime.UtcNow;
+        mark.UpdatedUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         await _audit.RecordAsync("Approved marks record", nameof(Mark), id);
         TempData["Success"] = "Marks approved successfully.";
@@ -237,17 +267,22 @@ public class MarkController : Controller
         if (mark == null) return NotFound();
         if (!await _results.CanEditAsync(User, mark.SubjectId) ||
             mark.Exam.Status != ExamLifecycle.OpenForEntry || mark.IsApproved) return Forbid();
+        if (!await (await _results.ScopeAsync(_context.Marks.Where(m => m.Id == id), User)).AnyAsync()) return Forbid();
         return View(mark);
     }
 
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "HOD,Professor")]
-    public async Task<IActionResult> Edit(int id, decimal score, string? remarks)
+    public async Task<IActionResult> Edit(int id, decimal score, string? remarks, DateTime? expectedUpdatedUtc = null)
     {
         var mark = await _context.Marks.Include(m => m.Student).Include(m => m.Subject)
             .Include(m => m.Exam).SingleOrDefaultAsync(m => m.Id == id);
         if (mark == null) return NotFound();
         if (!await _results.CanEditAsync(User, mark.SubjectId) ||
             mark.Exam.Status != ExamLifecycle.OpenForEntry || mark.IsApproved) return Forbid();
+        if (!await (await _results.ScopeAsync(_context.Marks.Where(m => m.Id == id), User)).AnyAsync()) return Forbid();
+        if (!ModelState.IsValid || remarks?.Length > 500) return BadRequest("Provide a valid score and remarks of at most 500 characters.");
+        if (expectedUpdatedUtc.HasValue)
+            _context.Entry(mark).Property(m => m.UpdatedUtc).OriginalValue = expectedUpdatedUtc.Value;
         if (score < 0 || score > mark.Exam.MaximumMarks)
         {
             ModelState.AddModelError(nameof(score), $"Score must be between 0 and {mark.Exam.MaximumMarks:0.##}.");
@@ -314,6 +349,7 @@ public class MarkController : Controller
         var mark = await _context.Marks.Include(m => m.Exam).SingleOrDefaultAsync(m => m.Id == id);
         if (mark == null) return NotFound();
         if (!await _results.CanEditAsync(User, mark.SubjectId)) return Forbid();
+        if (!await (await _results.ScopeAsync(_context.Marks.Where(m => m.Id == id), User)).AnyAsync()) return Forbid();
         if (mark.Exam.Status != ExamLifecycle.Published)
             return Conflict("Use normal editing before publication.");
         if (score < 0 || score > mark.Exam.MaximumMarks || string.IsNullOrWhiteSpace(reason))
@@ -344,7 +380,12 @@ public class MarkController : Controller
             .Include(r => r.Mark).ThenInclude(m => m.Exam)
             .SingleOrDefaultAsync(r => r.Id == id);
         if (request == null) return NotFound();
+        if (!await (await _results.ScopeAsync(_context.Marks.Where(mark => mark.Id == request.MarkId), User)).AnyAsync()) return Forbid();
         if (request.Status != ApprovalStatus.Pending) return Conflict("Correction already reviewed.");
+        if (approve && (request.Mark.Score != request.PreviousScore ||
+            request.Mark.Exam.Status != ExamLifecycle.Published ||
+            request.RequestedScore < 0 || request.RequestedScore > request.Mark.Exam.MaximumMarks))
+            return Conflict("The result or exam has changed since this correction was requested. Reload and submit a new correction.");
         request.Status = approve ? ApprovalStatus.Approved : ApprovalStatus.Rejected;
         request.ReviewedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         request.ReviewedUtc = DateTime.UtcNow;
@@ -363,4 +404,14 @@ public class MarkController : Controller
         return RedirectToAction(nameof(Details), new { id = request.MarkId });
     }
 
+    private async Task<IQueryable<Student>> EntryStudentsAsync()
+    {
+        var query = _context.Students.Where(s => !s.IsArchived);
+        var actor = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!User.IsInRole("HOD")) return StudentRecordScope.ForCampuses(_context, query, actor);
+        var department = await _context.Teachers.AsNoTracking()
+            .Where(t => t.UserId == actor && t.TeacherType == TeacherType.HOD)
+            .Select(t => t.DepartmentId).SingleOrDefaultAsync();
+        return department.HasValue ? StudentRecordScope.ForHod(_context, query, actor, department.Value) : query.Where(_ => false);
+    }
 }

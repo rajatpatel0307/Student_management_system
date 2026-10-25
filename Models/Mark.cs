@@ -20,6 +20,7 @@ public class Mark
 
     // 🎯 Marks
     [Range(0, 1000000)]
+    [ConcurrencyCheck]
     public decimal Score { get; set; }
 
     public string Grade { get; set; } = "";
@@ -29,8 +30,8 @@ public class Mark
     [MaxLength(40)] public string ResultStatus { get; set; } = "Recorded";
     public decimal GraceMarks { get; set; }
     public bool IsWithheld { get; set; }
-    public bool IsApproved { get; set; }
+    [ConcurrencyCheck] public bool IsApproved { get; set; }
     public string? ApprovedByUserId { get; set; }
     public DateTime? ApprovedUtc { get; set; }
-    public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
+    [ConcurrencyCheck] public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 }

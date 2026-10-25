@@ -21,5 +21,6 @@ appsettings.*.Local.json
 *.pfx
 *.key
 *.pem
+sixlabors.lic
 
 **/Student_Management_System/App_Data/

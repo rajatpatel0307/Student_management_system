@@ -1,7 +1,9 @@
 @model Student_Management_System.Models.AdmissionDashboardViewModel
 @using Student_Management_System.Models
+@inject Student_Management_System.Services.PermissionService Permissions
+@{ var canCreate = await Permissions.HasAsync(User, "admission.create"); var canReview = await Permissions.HasAsync(User, "admission.review"); }
 @{ ViewData["Title"]="Admissions"; var years=ViewBag.AcademicYears as IEnumerable<AcademicYear>??[]; var inquiries=ViewBag.Inquiries as IEnumerable<AdmissionInquiry>??[]; var programs=ViewBag.Programs as IEnumerable<AcademicProgram>??[]; }
-<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Enrollment pipeline</span><h1>Admissions</h1><p>Track each applicant from initial submission through secure student enrollment.</p></div><div class="page-actions"><a asp-action="Create" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> New application</a></div></div>
+<div class="page-header"><div class="page-header-copy"><span class="eyebrow">Enrollment pipeline</span><h1>Admissions</h1><p>Track each applicant from initial submission through secure student enrollment.</p></div>@if(canCreate){<div class="page-actions"><a asp-action="Create" class="btn btn-primary"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> New application</a></div>}</div>
 <div class="metric-grid mb-3">
     <article class="metric-card"><span class="metric-label">Applications</span><strong class="metric-value">@Model.Total</strong></article>
     <article class="metric-card info"><span class="metric-label">New</span><strong class="metric-value">@Model.New</strong></article>
@@ -17,13 +19,16 @@
     <div class="filter-actions"><button class="btn btn-primary">Apply</button><a asp-action="Index" class="btn btn-outline-secondary">Reset</a></div>
 </div></form>
 <section class="card table-card">
-@if(Model.Applications.Count==0){<partial name="_EmptyRecords" model="@(("No applications found","Adjust the filters or register a new applicant.","Create","New application"))" />}
-else{<div class="table-responsive"><table class="table table-hover"><thead><tr><th>Applicant</th><th>Reference</th><th>Program</th><th>Academic year</th><th>Stage</th><th>Updated</th><th class="text-end">Actions</th></tr></thead><tbody>
-@foreach(var item in Model.Applications){<tr><td><a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.ApplicantName</a><small class="d-block text-muted">@item.Email</small></td><td>@item.ReferenceNumber</td><td>@item.ProgramName<small class="d-block text-muted">@item.Department.Name</small></td><td>@item.AcademicYear.Name</td><td><span class="badge bg-info">@item.Stage</span></td><td>@item.UpdatedUtc.ToLocalTime().ToString("dd MMM yyyy")</td><td class="text-end"><div class="table-actions"><a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">View</a>@if(item.Stage!=AdmissionStage.Enrolled){<a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">Edit</a>}</div></td></tr>}
+<div class="table-toolbar"><strong>@Model.Total.ToString("N0") applications</strong><partial name="_PageSizeSelector" model="Model.Pagination.PageSize" /></div>
+@if(Model.Applications.Count==0){<div class="empty-state"><h2>No applications found</h2><p>Adjust your filters to find an application.</p><a asp-action="Index" class="btn btn-outline-secondary">Reset filters</a></div>}
+else{<div class="table-responsive"><table class="table table-hover"><caption class="visually-hidden">Campus-scoped admission applications matching the current filters.</caption><thead><tr><th scope="col">Applicant</th><th scope="col">Reference</th><th scope="col">Program</th><th scope="col">Academic year</th><th scope="col">Stage</th><th scope="col">Updated</th><th scope="col" class="text-end">Actions</th></tr></thead><tbody>
+@foreach(var item in Model.Applications){<tr><td><a asp-action="Details" asp-route-id="@item.Id" class="record-link">@item.ApplicantName</a><small class="d-block text-muted">@item.Email</small></td><td>@item.ReferenceNumber</td><td>@item.ProgramName<small class="d-block text-muted">@item.Department.Name</small></td><td>@item.AcademicYear.Name</td><td><span class="badge bg-info">@item.Stage</span></td><td>@item.UpdatedUtc.ToLocalTime().ToString("dd MMM yyyy")</td><td class="text-end"><div class="table-actions"><a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" aria-label="View application for @item.ApplicantName">View</a>@if(canReview && item.Stage!=AdmissionStage.Enrolled){<a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" aria-label="Edit application for @item.ApplicantName">Edit</a>}</div></td></tr>}
 </tbody></table></div>}
+<partial name="_ServerPagination" model="Model.Pagination" />
 </section>
 <section class="card section-card mt-3">
     <div class="section-title-row"><div><h2>Admission inquiries</h2><p>Capture prospective applicants before a full application is created.</p></div></div>
+    @if(canCreate){
     <form asp-action="CreateInquiry" method="post" class="row g-3 align-items-end">
         <div class="col-md-3"><label class="form-label" for="prospectName">Prospect name</label><input id="prospectName" name="prospectName" class="form-control" maxlength="160" required /></div>
         <div class="col-md-3"><label class="form-label" for="inquiryEmail">Email</label><input id="inquiryEmail" name="email" type="email" class="form-control" /></div>
@@ -31,5 +36,6 @@ else{<div class="table-responsive"><table class="table table-hover"><thead><tr><
         <div class="col-md-2"><label class="form-label" for="inquiryProgram">Program</label><select id="inquiryProgram" name="academicProgramId" class="form-select"><option value="">Not selected</option>@foreach(var program in programs){<option value="@program.Id">@program.Name</option>}</select></div>
         <div class="col-md-2"><button class="btn btn-outline-primary w-100">Add inquiry</button></div>
     </form>
+    }
     @if(inquiries.Any()){<div class="table-responsive mt-3"><table class="table"><thead><tr><th>Prospect</th><th>Contact</th><th>Program</th><th>Source</th><th>Status</th></tr></thead><tbody>@foreach(var inquiry in inquiries){<tr><td>@inquiry.ProspectName</td><td>@(inquiry.Email??inquiry.Phone??"—")</td><td>@(inquiry.AcademicProgram?.Name??"—")</td><td>@inquiry.Source</td><td><span class="badge bg-info">@inquiry.Status</span></td></tr>}</tbody></table></div>}
 </section>

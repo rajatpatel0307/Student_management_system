@@ -51,21 +51,22 @@ namespace Student_Management_System.Controllers
         public async Task<IActionResult> Index([FromQuery] ListQuery request, CancellationToken cancellationToken)
         {
             request.Normalize();
-            var query = await BuildDirectoryQueryAsync(request, cancellationToken);
+            var weights = await new AttendanceService(_context).GetWeightsAsync(cancellationToken);
+            var query = await BuildDirectoryQueryAsync(request, cancellationToken, weights);
             if (query == null) return Forbid();
 
             var filteredIds = query.Select(s => s.Id);
             var attendanceRates = _context.Attendances.AsNoTracking()
                 .Where(a => filteredIds.Contains(a.StudentId))
                 .GroupBy(a => a.StudentId)
-                .Select(g => new { Total = g.Count(), Present = g.Count(a => a.Status == "Present") });
+                .Select(g => new { Total = g.Count(), Earned = g.Sum(a => a.Status == "Present" ? 1m : a.Status == "Late" ? weights.Late : a.Status == "Excused" ? weights.Excused : 0m) });
             var now = DateTimeOffset.UtcNow;
             ViewBag.Stats = new[]
             {
                 new StatCardViewModel("Total students", (await query.CountAsync(cancellationToken)).ToString("N0"), "Across the current filters", "fa-solid fa-user-graduate"),
                 new StatCardViewModel("Active accounts", (await query.CountAsync(s => s.User != null && s.User.IsActive && (!s.User.LockoutEnd.HasValue || s.User.LockoutEnd <= now), cancellationToken)).ToString("N0"), "Enabled and not locked", "fa-solid fa-circle-check", "success", "status", "active"),
                 new StatCardViewModel("Inactive accounts", (await query.CountAsync(s => s.User == null || !s.User.IsActive || (s.User.LockoutEnd.HasValue && s.User.LockoutEnd > now), cancellationToken)).ToString("N0"), "Disabled, locked or not linked", "fa-solid fa-user-lock", "warning", "status", "inactive"),
-                new StatCardViewModel("Low attendance", (await attendanceRates.CountAsync(x => x.Total > 0 && (x.Present * 100.0 / x.Total) < 75, cancellationToken)).ToString("N0"), "Below the 75% threshold", "fa-solid fa-triangle-exclamation", "danger", "status", "low-attendance")
+                new StatCardViewModel("Low attendance", (await attendanceRates.CountAsync(x => x.Total > 0 && (x.Earned * 100m / x.Total) < 75, cancellationToken)).ToString("N0"), "Below the 75% threshold using configured weights", "fa-solid fa-triangle-exclamation", "danger", "status", "low-attendance")
             };
             var hodView = User.IsInRole("HOD");
             var departmentId = hodView
@@ -83,7 +84,7 @@ namespace Student_Management_System.Controllers
             return View(await query.ToPagedResultAsync(request, cancellationToken));
         }
 
-        private async Task<IQueryable<Student>?> BuildDirectoryQueryAsync(ListQuery request, CancellationToken cancellationToken)
+        private async Task<IQueryable<Student>?> BuildDirectoryQueryAsync(ListQuery request, CancellationToken cancellationToken, AttendanceWeights? weights = null)
         {
             var query = _context.Students
                 .Include(s => s.Class)
@@ -119,9 +120,12 @@ namespace Student_Management_System.Controllers
                 query = query.Where(s => s.DepartmentId == null || s.SemesterId == null);
             else if (request.Status == "low-attendance")
             {
+                weights ??= await new AttendanceService(_context).GetWeightsAsync(cancellationToken);
+                var lateWeight = weights.Late;
+                var excusedWeight = weights.Excused;
                 var lowAttendanceStudentIds = _context.Attendances.AsNoTracking()
                     .GroupBy(a => a.StudentId)
-                    .Where(g => g.Count() > 0 && (g.Count(a => a.Status == "Present") * 100.0 / g.Count()) < 75)
+                    .Where(g => g.Count() > 0 && (g.Sum(a => a.Status == "Present" ? 1m : a.Status == "Late" ? lateWeight : a.Status == "Excused" ? excusedWeight : 0m) * 100m / g.Count()) < 75)
                     .Select(g => g.Key);
                 query = query.Where(s => lowAttendanceStudentIds.Contains(s.Id));
             }
@@ -147,7 +151,7 @@ namespace Student_Management_System.Controllers
         // ================= DETAILS =================
         public async Task<IActionResult> Details(
             int? id,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, int attendancePage = 1, int marksPage = 1)
         {
             var allowedStudents = await BuildAllowedStudentsQueryAsync(
                 id,
@@ -165,21 +169,28 @@ namespace Student_Management_System.Controllers
             var viewerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var professorView = User.IsInRole("Professor");
 
-            var attendance = await _context.Attendances.AsNoTracking()
+            var attendanceQuery = _context.Attendances.AsNoTracking()
                 .Include(a => a.Subject).Include(a => a.Teacher)
                 .Where(a => a.StudentId == student.Id &&
                     (!professorView ||
                      a.Teacher!.UserId == viewerId ||
-                     a.Subject!.TeacherAssignments.Any(t => t.Teacher.UserId == viewerId)))
-                .OrderByDescending(a => a.Date)
-                .ToListAsync(cancellationToken);
+                     a.Subject!.TeacherAssignments.Any(t => t.Teacher.UserId == viewerId)));
+            var attendanceSummary = await attendanceQuery.GroupBy(a => a.StudentId)
+                .Select(group => new { Total = group.Count(), Present = group.Count(a => a.Status == "Present"),
+                    Absent = group.Count(a => a.Status == "Absent"), Late = group.Count(a => a.Status == "Late"), Excused = group.Count(a => a.Status == "Excused") })
+                .SingleOrDefaultAsync(cancellationToken);
+            var weights = await new AttendanceService(_context).GetWeightsAsync(cancellationToken);
+            var attendance = await attendanceQuery.OrderByDescending(a => a.Date).ThenByDescending(a => a.Id)
+                .ToPagedResultAsync(new ListQuery { Page = attendancePage, PageSize = 20 }, cancellationToken);
             var marksQuery = _context.Marks.AsNoTracking()
                 .Include(m => m.Subject).Include(m => m.Exam).Include(m => m.EnteredByTeacher)
                 .Where(m => m.StudentId == student.Id);
             marksQuery = await _results.ScopeAsync(marksQuery, User, cancellationToken);
             var marks = await marksQuery
-                .OrderByDescending(m => m.Exam.ExamDate)
-                .ToListAsync(cancellationToken);
+                .OrderByDescending(m => m.Exam.ExamDate).ThenByDescending(m => m.Id)
+                .ToPagedResultAsync(new ListQuery { Page = marksPage, PageSize = 20 }, cancellationToken);
+            var averageScore = await marksQuery.Where(m => m.Exam.MaximumMarks > 0)
+                .AverageAsync(m => (decimal?)(m.Score * 100m / m.Exam.MaximumMarks), cancellationToken) ?? 0;
             var enrollments = await _context.StudentClassEnrollments.AsNoTracking()
                 .Include(e => e.Class).Include(e => e.Section).Include(e => e.AcademicYear)
                 .Where(e => e.StudentId == student.Id)
@@ -295,8 +306,14 @@ namespace Student_Management_System.Controllers
             return View(new StudentDetailsViewModel
             {
                 Student = student,
-                Attendance = attendance,
-                Marks = marks,
+                Attendance = attendance.Items,
+                Marks = marks.Items,
+                AttendancePage = attendance,
+                MarksPage = marks,
+                PresentCount = attendanceSummary?.Present ?? 0,
+                AbsentCount = attendanceSummary?.Absent ?? 0,
+                LateCount = attendanceSummary?.Late ?? 0,
+                ExcusedCount = attendanceSummary?.Excused ?? 0,
                 Enrollments = enrollments,
                 Subjects = subjects,
                 Assignments = assignments,
@@ -320,8 +337,8 @@ namespace Student_Management_System.Controllers
                 CanViewPersonal = canViewPersonal,
                 CanViewFinance = canViewFinance,
                 CanViewSecurity = canViewSecurity,
-                AttendancePercentage = attendance.Count == 0 ? 0 : attendance.Count(a => a.Status == "Present") * 100.0 / attendance.Count,
-                AverageScore = marks.Count == 0 ? 0 : (double)marks.Average(m => m.Score)
+                AttendancePercentage = attendanceSummary == null ? 0 : (double)Math.Round((attendanceSummary.Present + attendanceSummary.Late * weights.Late + attendanceSummary.Excused * weights.Excused) * 100m / attendanceSummary.Total, 1),
+                AverageScore = (double)averageScore
             });
         }
 
@@ -539,6 +556,7 @@ namespace Student_Management_System.Controllers
                                 StudentId = student.Id,
                                 SubjectId = subjectId
                             }));
+                    AccountActivationRequests.Enqueue(_context, user.Id);
                     await _context.SaveChangesAsync(cancellationToken);
 
                     await transaction.CommitAsync(cancellationToken);
@@ -549,14 +567,20 @@ namespace Student_Management_System.Controllers
 
                 if (committed && createdUser != null)
                 {
-                    var invitation = await _accounts.CreateActivationAsync(
-                        createdUser, cancellationToken);
-                    var url = Url.Action("Activate", "Account",
-                        new { email = createdUser.Email, token = invitation.RawToken },
-                        Request.Scheme);
-                    var delivered = !string.IsNullOrWhiteSpace(url) &&
-                        await _accounts.SendActivationAsync(
-                            createdUser, url, cancellationToken);
+                    var delivered = false;
+                    try
+                    {
+                        var invitation = await _accounts.CreateActivationAsync(createdUser, cancellationToken);
+                        var url = Url.Action("Activate", "Account",
+                            new { email = createdUser.Email, token = invitation.RawToken }, Request.Scheme);
+                        delivered = !string.IsNullOrWhiteSpace(url) &&
+                            await _accounts.SendActivationAsync(createdUser, url, cancellationToken);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // The account is committed and a durable recovery request
+                        // exists. Do not encourage duplicate account submission.
+                    }
                     TempData[delivered ? "Success" : "Warning"] = delivered
                         ? "Student account created and the activation invitation was sent."
                         : "Student account created, but activation email delivery is pending.";
@@ -804,23 +828,45 @@ namespace Student_Management_System.Controllers
                 ModelState.AddModelError(nameof(reason), "Enter an archive reason of 1 to 500 characters.");
                 return View("Delete", student);
             }
-            student.IsArchived = true;
-            student.ArchivedUtc = DateTime.UtcNow;
-            student.ArchivedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            student.ArchiveReason = reason.Trim();
-            if (!string.IsNullOrEmpty(student.UserId))
+            try
             {
-                var user = await _userManager.FindByIdAsync(student.UserId);
-                if (user != null)
+                await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
                 {
-                    user.IsActive = false;
-                    await _userManager.UpdateAsync(user);
-                    await _userManager.UpdateSecurityStampAsync(user);
-                }
+                    // Each retry reloads a clean unit of work; Identity shares this
+                    // scoped context, so its saves participate in the transaction.
+                    _context.ChangeTracker.Clear();
+                    await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+                    student = await _context.Students.SingleAsync(s => s.Id == id, cancellationToken);
+                    if (student.IsArchived) return;
+                    student.IsArchived = true;
+                    student.ArchivedUtc = DateTime.UtcNow;
+                    student.ArchivedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    student.ArchiveReason = reason.Trim();
+                    if (!string.IsNullOrEmpty(student.UserId))
+                    {
+                        var user = await _userManager.FindByIdAsync(student.UserId);
+                        if (user != null)
+                        {
+                            user.IsActive = false;
+                            var update = await _userManager.UpdateAsync(user);
+                            if (!update.Succeeded) throw new InvalidOperationException("Identity deactivation failed.");
+                            var stamp = await _userManager.UpdateSecurityStampAsync(user);
+                            if (!stamp.Succeeded) throw new InvalidOperationException("Identity session invalidation failed.");
+                        }
+                    }
+                    await _context.SaveChangesAsync(cancellationToken);
+                    await _audit.RecordAsync("Archived Student profile and deactivated login", nameof(Student), id);
+                    await transaction.CommitAsync(cancellationToken);
+                });
             }
-
-            await _context.SaveChangesAsync(cancellationToken);
-            await _audit.RecordAsync("Archived Student profile and deactivated login", nameof(Student), id);
+            catch (InvalidOperationException exception)
+            {
+                _logger.LogWarning(exception, "Student archive was rolled back for {StudentId}.", id);
+                _context.ChangeTracker.Clear();
+                student = await _context.Students.AsNoTracking().SingleAsync(s => s.Id == id, cancellationToken);
+                ModelState.AddModelError("", "The student could not be archived. No changes were saved. Please retry or contact an administrator.");
+                return View("Delete", student);
+            }
             TempData["Success"] = "Student archived. Historical records and the private photo were preserved.";
             return RedirectToAction(nameof(Index));
         }
@@ -840,7 +886,7 @@ namespace Student_Management_System.Controllers
                 var departmentId = await GetHodDepartmentAsync(userId, cancellationToken);
                 if (!id.HasValue || !departmentId.HasValue) return null;
                 return StudentRecordScope.ForHod(_context, allowedStudents, userId, departmentId.Value)
-                    .Where(s => s.Id == id);
+                    .Where(s => !s.IsArchived && s.Id == id);
             }
 
             if (User.IsInRole("Professor"))
@@ -848,7 +894,7 @@ namespace Student_Management_System.Controllers
                 if (!id.HasValue)
                     return null;
                 return allowedStudents.Where(
-                    s => s.Id == id &&
+                    s => !s.IsArchived && s.Id == id &&
                          (s.Class!.TeacherAssignments.Any(
                               a => a.Teacher.UserId == userId) ||
                           s.SubjectEnrollments.Any(
@@ -856,7 +902,7 @@ namespace Student_Management_System.Controllers
                                   a => a.Teacher.UserId == userId))));
             }
 
-            return allowedStudents.Where(s => s.UserId == userId);
+            return allowedStudents.Where(s => !s.IsArchived && s.UserId == userId);
         }
 
         private Task<int?> GetHodDepartmentAsync(string? userId, CancellationToken cancellationToken) =>

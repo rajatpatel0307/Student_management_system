@@ -1,5 +1,6 @@
 @model Student_Management_System.Models.PagedResult<Student_Management_System.Models.FinancialTransaction>
 @using Student_Management_System.Models
+@inject Student_Management_System.Services.PermissionService Permissions
 @{
     ViewData["Title"] = "Finance ledger";
     var request = ViewContext.HttpContext.Request;
@@ -28,6 +29,8 @@
         <p>Search, reconcile, export, and review immutable payment and reversal records.</p>
     </div>
     <div class="page-actions">
+        @if (await Permissions.HasAsync(User, "reports.export"))
+        {
         <a asp-action="Export"
            asp-route-search="@Model.Search"
            asp-route-type="@selectedType"
@@ -37,12 +40,17 @@
            class="btn btn-outline-secondary">
             <i class="fa-solid fa-file-csv"></i> Export CSV
         </a>
+        }
+        <a asp-action="Invoices" class="btn btn-outline-secondary">Student invoices</a>
         <a asp-controller="Fee" asp-action="Index" class="btn btn-outline-secondary">
             <i class="fa-solid fa-list-check"></i> Fee structures
         </a>
+        @if (await Permissions.HasAsync(User, "fees.collect"))
+        {
         <a asp-action="Collect" class="btn btn-primary">
             <i class="fa-solid fa-cash-register"></i> Collect payment
         </a>
+        }
     </div>
 </div>
 

@@ -1,5 +1,31 @@
 # Verification and change record
 
+Latest: [Phase 4](IMPLEMENTATION_PHASE4.md), 25 October 2026.
+Final quality script exits **1** because Release still fails missing ImageSharp
+licensing; artifact creation is BLOCKED. Restore, Debug build, **131 non-SQL** and
+**9,242 integration assertions**, **35 Node tests**, seven script syntax checks,
+configured NuGet advisory scan and `git diff --check` pass. Browser setup still
+fails before execution; responsive/accessibility acceptance is BLOCKED.
+New financial/admission/recovery tests and measured navigation query reduction
+are detailed in the report. Full modules remain unaccepted in the final matrix.
+
+Latest: [Phase 3 continuation](IMPLEMENTATION_PHASE3.md), 25 October 2026.
+Debug build, 121 non-SQL assertions, the expanded disposable SQL/HTTPS/Razor
+suite, 35 Node tests and JavaScript syntax checks pass. Exact final assertion
+count and limits are recorded in the continuation report. NuGet's current scan
+reports no vulnerable packages from configured sources. Release still fails
+ImageSharp license enforcement. Browser invocation still fails before execution
+with missing `sandboxPolicy`; viewport and accessibility acceptance are Not Run.
+The complete action-policy matrix does not certify every record-level workflow.
+
+Latest continuation: [IMPLEMENTATION_PHASE2.md](IMPLEMENTATION_PHASE2.md).
+The .NET runner now executes normally: 121 non-SQL assertions and 351 total
+assertions in the expanded SQL/HTTPS/Razor integration suite pass; Node tests
+pass 35/35. NuGet's
+current advisory scan reports no vulnerable packages. Release compilation is
+still blocked by the missing ImageSharp license; visual browser acceptance
+remains unavailable. Historical Phase 1 results below remain preserved.
+
 24 October 2026. Scope: initial repository audit, student directory/form safety,
 and connected admissions/results/search contracts. This is not a full production
 release gate or a claim that every inventoried endpoint was executed.

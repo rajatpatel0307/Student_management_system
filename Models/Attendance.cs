@@ -19,12 +19,13 @@ public class Attendance
     public int? TeacherId { get; set; }
     public Teacher? Teacher { get; set; }
     [MaxLength(100)] public string? Lecture { get; set; }
-    public DateTime? UpdatedUtc { get; set; }
+    [ConcurrencyCheck] public DateTime? UpdatedUtc { get; set; }
 
     // 📅 Date
     public DateTime Date { get; set; }
 
     // ✅ Status (Present / Absent)
     [Required, MaxLength(20)]
+    [ConcurrencyCheck]
     public string Status { get; set; } = "";
 }

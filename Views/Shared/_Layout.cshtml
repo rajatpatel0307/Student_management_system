@@ -33,19 +33,21 @@
         .Take(2)
         .Select(part => char.ToUpperInvariant(part[0])));
     if (string.IsNullOrWhiteSpace(initials)) initials = "U";
-    var canAdmission = isAuthenticated && await Permissions.HasAsync(User, "admission.view");
-    var canFinance = isAuthenticated && await Permissions.HasAsync(User, "fees.view");
-    var canMarks = isAuthenticated && await Permissions.HasAsync(User, "marks.view");
-    var canAttendance = isAuthenticated && await Permissions.HasAsync(User, "attendance.view");
-    var canManageDepartments = isAuthenticated && await Permissions.HasAsync(User, "ManageDepartments");
-    var canManageTeachers = isAuthenticated && await Permissions.HasAsync(User, "ManageTeachers");
-    var canManageStudents = isAuthenticated && await Permissions.HasAsync(User, "ManageStudents");
-    var canManageAcademics = isAuthenticated && await Permissions.HasAsync(User, "ManageAcademics");
-    var canReports = isAuthenticated && await Permissions.HasAsync(User, "reports.view");
-    var canAcademicStructure = isAuthenticated && await Permissions.HasAsync(User, "academic.structure.manage");
-    var canPromote = isAuthenticated && await Permissions.HasAsync(User, "student.lifecycle.manage");
-    var canCommunicate = isAuthenticated && await Permissions.HasAsync(User, "communications.manage");
-    var canApprovals = isAuthenticated && await Permissions.HasAsync(User, "approvals.manage");
+    var navigationPermissions = await Permissions.ReadForDisplayAsync(User,
+        ["admission.view", "fees.view", "marks.view", "attendance.view", "ManageDepartments", "ManageTeachers", "ManageStudents", "ManageAcademics", "reports.view", "academic.structure.manage", "student.lifecycle.manage", "communications.manage", "approvals.manage"], Context.RequestAborted);
+    var canAdmission = isAuthenticated && navigationPermissions["admission.view"];
+    var canFinance = isAuthenticated && navigationPermissions["fees.view"];
+    var canMarks = isAuthenticated && navigationPermissions["marks.view"];
+    var canAttendance = isAuthenticated && navigationPermissions["attendance.view"];
+    var canManageDepartments = isAuthenticated && navigationPermissions["ManageDepartments"];
+    var canManageTeachers = isAuthenticated && navigationPermissions["ManageTeachers"];
+    var canManageStudents = isAuthenticated && navigationPermissions["ManageStudents"];
+    var canManageAcademics = isAuthenticated && navigationPermissions["ManageAcademics"];
+    var canReports = isAuthenticated && navigationPermissions["reports.view"];
+    var canAcademicStructure = isAuthenticated && navigationPermissions["academic.structure.manage"];
+    var canPromote = isAuthenticated && navigationPermissions["student.lifecycle.manage"];
+    var canCommunicate = isAuthenticated && navigationPermissions["communications.manage"];
+    var canApprovals = isAuthenticated && navigationPermissions["approvals.manage"];
     var cspNonce = ViewContext.HttpContext.Items["CspNonce"]?.ToString();
     var contextualBackActions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -77,22 +79,13 @@
     <link rel="manifest" href="~/manifest.webmanifest" />
     <link rel="icon" href="~/icons/eduflow.svg" type="image/svg+xml" />
     <title>@pageTitle · EduFlow</title>
-    <script nonce="@cspNonce">
-        (() => {
-            document.documentElement.dataset.theme = 'light';
-            localStorage.removeItem('sms-theme');
-            if (localStorage.getItem('sms-sidebar-collapsed') === 'true' &&
-                matchMedia('(min-width: 992px)').matches) {
-                document.documentElement.classList.add('sidebar-collapsed');
-            }
-        })();
-    </script>
+    <script src="~/js/preferences.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
 </head>
-<body class="@(isAuthenticated ? "app-body" : "auth-body")">
+<body class="@(isAuthenticated ? "app-body" : "auth-body")" data-draft-user="@(isAuthenticated ? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value : null)" data-clear-draft="@TempData["ClearDraft"]">
     <a class="skip-link" href="#main-content">Skip to main content</a>
 
     @if (isAuthenticated)
@@ -464,6 +457,9 @@
                 </div>
 
                 <div class="topbar-actions">
+                    <button class="icon-btn" type="button" data-theme-toggle aria-pressed="false" aria-label="Use dark theme" title="Use dark theme">
+                        <i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i>
+                    </button>
                     <button class="topbar-search" type="button" data-command-open aria-label="Open quick navigation">
                         <i class="fa-solid fa-magnifying-glass"></i>
                         <span>Search</span>
@@ -601,6 +597,7 @@
 
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/private-drafts.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

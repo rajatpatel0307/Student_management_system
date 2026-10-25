@@ -29,7 +29,7 @@
     <!-- Patch the existing scaffolding dependency and its NuGet.Packaging
          dependency for GHSA-g4vj-cjjj-v7hg without changing framework versions. -->
     <PackageReference Include="NuGet.Protocol" Version="6.11.2" PrivateAssets="all" />
-    <!-- This version emits a build warning when a Six Labors license is absent.
+    <!-- A missing Six Labors license warns in Debug and blocks Release builds.
          Configure the appropriate license for the deployment; do not silently
          change image-processing dependencies as part of a UI update. -->
     <PackageReference Include="SixLabors.ImageSharp" Version="4.1.2" />

@@ -7,7 +7,7 @@ public class ApplicationUser : IdentityUser
     [Required]
     public string FullName { get; set; } = "";
     [MaxLength(40)]
-    public string? PublicUserId { get; set; }
+    public string? PublicUserId { get; set; } = "USR-" + Guid.NewGuid().ToString("N").ToUpperInvariant();
     [MaxLength(16)]
     public string? NormalizedMobileNumber { get; private set; }
     public bool MustChangePassword { get; set; }

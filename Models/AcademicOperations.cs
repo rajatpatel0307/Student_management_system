@@ -35,7 +35,7 @@ public sealed class ResultCorrectionRequest
     public decimal RequestedScore { get; set; }
     [Required, MaxLength(1000)] public string Reason { get; set; } = "";
     [Required, MaxLength(450)] public string RequestedByUserId { get; set; } = "";
-    public ApprovalStatus Status { get; set; } = ApprovalStatus.Pending;
+    [ConcurrencyCheck] public ApprovalStatus Status { get; set; } = ApprovalStatus.Pending;
     [MaxLength(450)] public string? ReviewedByUserId { get; set; }
     public DateTime RequestedUtc { get; set; } = DateTime.UtcNow;
     public DateTime? ReviewedUtc { get; set; }

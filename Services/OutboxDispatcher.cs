@@ -44,30 +44,30 @@ public sealed class OutboxDispatcher : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var now = DateTime.UtcNow;
-        var messages = await db.OutboxMessages
+        var candidates = await db.OutboxMessages.AsNoTracking()
             .Where(m => m.ProcessedUtc == null && !m.IsDeadLetter &&
                         (m.NextAttemptUtc == null || m.NextAttemptUtc <= now) &&
                         (m.ClaimExpiresUtc == null || m.ClaimExpiresUtc <= now))
-            .OrderBy(m => m.Id).Take(25).ToListAsync(cancellationToken);
+            .OrderBy(m => m.Id).Select(m => m.Id).Take(25).ToListAsync(cancellationToken);
 
-        foreach (var message in messages)
+        // Claim each event immediately before handling it, so later messages do
+        // not lose their leases while an earlier SMTP operation is in progress.
+        foreach (var id in candidates)
         {
+            now = DateTime.UtcNow;
+            var message = await db.OutboxMessages.SingleOrDefaultAsync(m => m.Id == id && m.ProcessedUtc == null && !m.IsDeadLetter &&
+                (m.NextAttemptUtc == null || m.NextAttemptUtc <= now) && (m.ClaimExpiresUtc == null || m.ClaimExpiresUtc <= now), cancellationToken);
+            if (message == null) continue;
+            if (message.Type.StartsWith(ActivationDeliveryService.MessagePrefix, StringComparison.Ordinal))
+            {
+                await scope.ServiceProvider.GetRequiredService<ActivationDeliveryService>().TrySendAsync(id, cancellationToken);
+                continue;
+            }
             message.ClaimOwner = _workerId;
             message.ClaimedUtc = now;
-            message.ClaimExpiresUtc = now.AddMinutes(2);
-        }
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Another worker won this batch; its row-version claim is authoritative.
-            return;
-        }
-
-        foreach (var message in messages)
-        {
+            message.ClaimExpiresUtc = now.AddMinutes(5);
+            try { await db.SaveChangesAsync(cancellationToken); }
+            catch (DbUpdateConcurrencyException) { db.Entry(message).State = EntityState.Detached; continue; }
             try
             {
                 await HandleAsync(message, db, scope.ServiceProvider, cancellationToken);
@@ -99,7 +99,7 @@ public sealed class OutboxDispatcher : BackgroundService
                 _logger.LogWarning(exception,
                     "Outbox message {MessageId} ({MessageType}) failed on attempt {AttemptCount}.",
                     failed.Id, failed.Type, failed.AttemptCount);
-                return;
+                continue;
             }
         }
     }
@@ -114,6 +114,9 @@ public sealed class OutboxDispatcher : BackgroundService
         var payload = document.RootElement;
         switch (message.Type)
         {
+            case AccountActivationRequests.MessageType:
+                await AccountActivationRequests.EnsureInvitationAsync(services, RequiredString(payload, "UserId"), cancellationToken);
+                return;
             case "CommunicationCreated":
                 await services.GetRequiredService<ICommunicationService>()
                     .DispatchDueAsync(cancellationToken);
@@ -147,7 +150,7 @@ public sealed class OutboxDispatcher : BackgroundService
                         Title = message.Type == "finance.invoice-issued" ? "Invoice issued" : "Payment received",
                         Message = "Your finance account has been updated. Open the finance portal for the verified details.",
                         Category = "Finance",
-                        ActionUrl = "/StudentDashboard/Fees"
+                        ActionUrl = "/Home/Dashboard"
                     });
                 return;
             case "ApprovalActed":

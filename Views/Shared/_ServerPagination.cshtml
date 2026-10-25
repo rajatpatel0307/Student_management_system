@@ -4,13 +4,16 @@
     var totalPages = (int)Model.TotalPages;
     var request = ViewContext.HttpContext.Request;
     var query = request.Query.ToDictionary(x => x.Key, x => (string?)x.Value.ToString());
+    var pageParameter = ViewData["PageParameter"] as string ?? "page";
+    var fragment = ViewData["Fragment"] as string;
     string PageUrl(int pageNumber)
     {
-        query["page"] = pageNumber.ToString();
-        return request.Path.ToString() + Microsoft.AspNetCore.Http.QueryString.Create(query).ToString();
+        query[pageParameter] = pageNumber.ToString();
+        return request.Path.ToString() + Microsoft.AspNetCore.Http.QueryString.Create(query).ToString()
+            + (string.IsNullOrEmpty(fragment) ? "" : "#" + Uri.EscapeDataString(fragment));
     }
 }
-<nav class="server-pagination" aria-label="Record pages">
+<nav class="server-pagination" aria-label="@(ViewData["PagerLabel"] ?? "Record pages")">
     <p>Showing <strong>@Model.FirstItem to @Model.LastItem</strong> of <strong>@Model.TotalCount</strong></p>
     <ul class="pagination">
         <li class="page-item @(!Model.HasPrevious ? "disabled" : "")">

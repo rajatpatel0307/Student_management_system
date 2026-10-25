@@ -35,7 +35,7 @@ public sealed class AdmissionsController : Controller
         _campusScope = campusScope;
     }
 
-    public async Task<IActionResult> Index(string? search, AdmissionStage? stage, int? academicYearId)
+    public async Task<IActionResult> Index(string? search, AdmissionStage? stage, int? academicYearId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
     {
         var campusIds = await _campusScope.AllowedCampusIdsAsync(User);
         var query = _db.AdmissionApplications.AsNoTracking()
@@ -51,7 +51,8 @@ public sealed class AdmissionsController : Controller
         if (stage.HasValue) query = query.Where(a => a.Stage == stage);
         if (academicYearId.HasValue) query = query.Where(a => a.AcademicYearId == academicYearId);
 
-        var records = await query.OrderByDescending(a => a.UpdatedUtc).Take(250).ToListAsync();
+        var records = await query.OrderByDescending(a => a.UpdatedUtc).ThenByDescending(a => a.Id)
+            .ToPagedResultAsync(new ListQuery { Page = page, PageSize = pageSize, Search = search }, cancellationToken);
         ViewBag.AcademicYears = await _db.AcademicYears.AsNoTracking()
             .OrderByDescending(a => a.StartsOn).ToListAsync();
         ViewBag.Search = search;
@@ -59,13 +60,16 @@ public sealed class AdmissionsController : Controller
         ViewBag.AcademicYearId = academicYearId;
         ViewBag.Inquiries = await _db.AdmissionInquiries.AsNoTracking()
             .Include(i => i.AcademicProgram)
-            .Where(i => i.Status != "Closed")
+            .Where(i => i.Status != "Closed" &&
+                (User.IsInRole("SuperAdmin") || User.IsInRole("Admin") ||
+                 i.AssignedToUserId == User.FindFirstValue(ClaimTypes.NameIdentifier)))
             .OrderByDescending(i => i.CreatedUtc).Take(25).ToListAsync();
         ViewBag.Programs = await _db.AcademicPrograms.AsNoTracking()
             .Where(p => p.IsActive).OrderBy(p => p.Name).ToListAsync();
         return View(new AdmissionDashboardViewModel
         {
-            Applications = records,
+            Applications = records.Items,
+            Pagination = records,
             Total = await query.CountAsync(),
             New = await query.CountAsync(a => a.Stage == AdmissionStage.Submitted),
             UnderReview = await query.CountAsync(a => a.Stage == AdmissionStage.UnderReview),
@@ -99,10 +103,13 @@ public sealed class AdmissionsController : Controller
             .Where(a => a.AdmissionApplicationId == id)
             .OrderByDescending(a => a.StartsUtc).ToListAsync();
         if (application.EnrolledStudent?.UserId is string enrolledUserId)
+        {
             ViewBag.Activation = await _db.AccountActivations.AsNoTracking()
                 .Where(a => a.UserId == enrolledUserId)
                 .OrderByDescending(a => a.Id)
                 .FirstOrDefaultAsync();
+            ViewBag.InvitationStatus = (await InvitationStatusQuery.ReadAsync(_db, [enrolledUserId])).GetValueOrDefault(enrolledUserId);
+        }
         return View(application);
     }
 
@@ -272,6 +279,7 @@ public sealed class AdmissionsController : Controller
             {
                 UserName = application.Email,
                 Email = application.Email,
+                PhoneNumber = application.Phone?.Trim(),
                 FullName = application.ApplicantName,
                 EmailConfirmed = false
             };
@@ -339,6 +347,7 @@ public sealed class AdmissionsController : Controller
                 Comment = "Student account and enrollment created.",
                 ChangedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? ""
             });
+            AccountActivationRequests.Enqueue(_db, user.Id);
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
             return student.Id;
@@ -352,16 +361,23 @@ public sealed class AdmissionsController : Controller
             return Problem(
                 "The student was enrolled, but the linked account could not be loaded. An administrator must repair the account link.",
                 statusCode: StatusCodes.Status500InternalServerError);
-        var invitation = await _studentAccounts.CreateActivationAsync(enrolledUser);
-        var activationUrl = Url.Action(
-            "Activate", "Account",
-            new { email = enrolledUser.Email, token = invitation.RawToken },
-            Request.Scheme);
-        var delivered = !string.IsNullOrWhiteSpace(activationUrl) &&
-                        await _studentAccounts.SendActivationAsync(enrolledUser, activationUrl);
+        var delivered = false;
+        try
+        {
+            var invitation = await _studentAccounts.CreateActivationAsync(enrolledUser);
+            var activationUrl = Url.Action("Activate", "Account",
+                new { email = enrolledUser.Email, token = invitation.RawToken }, Request.Scheme);
+            delivered = !string.IsNullOrWhiteSpace(activationUrl) &&
+                await _studentAccounts.SendActivationAsync(enrolledUser, activationUrl);
+        }
+        catch (InvalidOperationException)
+        {
+            // Account/enrollment already committed. The durable request recovers
+            // setup failures or a worker that queued the invitation first.
+        }
         TempData[delivered ? "Success" : "Warning"] = delivered
             ? "Student enrolled and the activation invitation was sent."
-            : "Student enrolled, but activation email delivery is pending. Use Resend activation after SMTP is restored.";
+            : "Student enrolled; activation delivery is queued for retry. Check the invitation status for updates.";
         return RedirectToAction(nameof(Details), new { id = application.Id });
     }
 
@@ -387,7 +403,7 @@ public sealed class AdmissionsController : Controller
                     new { email = user.Email, token = invitation.RawToken }, Request.Scheme);
                 if (!string.IsNullOrWhiteSpace(url))
                     await _studentAccounts.SendActivationAsync(user, url, cancellationToken);
-                await _audit.RecordAsync("Resent student activation invitation", nameof(ApplicationUser), user.Id);
+                await _audit.RecordAsync("Requested student activation delivery", nameof(ApplicationUser), user.Id);
             }
             catch (InvalidOperationException)
             {
@@ -443,6 +459,9 @@ public sealed class AdmissionsController : Controller
         if (string.IsNullOrWhiteSpace(prospectName) ||
             (string.IsNullOrWhiteSpace(email) && string.IsNullOrWhiteSpace(phone)))
             return BadRequest("A prospect name and at least one contact method are required.");
+        if (prospectName.Length > 160 || email?.Length > 256 || phone?.Length > 30 || source?.Length > 80 ||
+            (!string.IsNullOrWhiteSpace(email) && !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(email.Trim())))
+            return BadRequest("Enter valid contact details within the permitted lengths.");
         if (academicProgramId.HasValue &&
             !await _db.AcademicPrograms.AnyAsync(p =>
                 p.Id == academicProgramId && p.IsActive, cancellationToken))

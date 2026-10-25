@@ -35,12 +35,16 @@ public sealed class ResultService : IResultService
     {
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId)) return query.Where(_ => false);
+        query = query.Where(mark => !_db.UserPermissions.Any(permission => permission.UserId == userId &&
+            permission.Permission.Key == "marks.view" && !permission.IsGranted));
         if (principal.IsInRole("SuperAdmin")) return query;
 
         if (principal.IsInRole("Admin") || principal.IsInRole("ExaminationOfficer"))
-            return await _permissions.HasAsync(principal, "marks.view", cancellationToken)
-                ? query
-                : query.Where(_ => false);
+        {
+            if (!await _permissions.HasAsync(principal, "marks.view", cancellationToken)) return query.Where(_ => false);
+            var ids = StudentRecordScope.ForCampuses(_db, _db.Students, userId).Select(student => student.Id);
+            return query.Where(mark => ids.Contains(mark.StudentId));
+        }
 
         if (principal.IsInRole("HOD"))
         {
@@ -48,16 +52,19 @@ public sealed class ResultService : IResultService
                 .Where(t => t.UserId == userId && t.TeacherType == TeacherType.HOD)
                 .Select(t => t.DepartmentId)
                 .SingleOrDefaultAsync(cancellationToken);
-            return departmentId.HasValue
-                ? query.Where(m => m.Subject.DepartmentId == departmentId ||
-                                   m.Student.DepartmentId == departmentId)
-                : query.Where(_ => false);
+            if (!departmentId.HasValue) return query.Where(_ => false);
+            var studentIds = StudentRecordScope.ForHod(_db,
+                _db.Students.Where(s => !s.IsArchived), userId, departmentId.Value).Select(s => s.Id);
+            return query.Where(m => studentIds.Contains(m.StudentId));
         }
 
         if (principal.IsInRole("Professor"))
-            return query.Where(m =>
+        {
+            var ids = StudentRecordScope.ForCampuses(_db, _db.Students.Where(student => !student.IsArchived), userId).Select(student => student.Id);
+            return query.Where(m => ids.Contains(m.StudentId) && (
                 m.Subject.TeacherAssignments.Any(a => a.Teacher.UserId == userId) ||
-                (m.Subject.Teacher != null && m.Subject.Teacher.UserId == userId));
+                (m.Subject.Teacher != null && m.Subject.Teacher.UserId == userId)));
+        }
 
         if (principal.IsInRole("Student"))
             return query.Where(m => m.Student.UserId == userId &&

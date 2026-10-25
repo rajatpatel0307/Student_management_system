@@ -89,6 +89,7 @@ public sealed class FinanceController : Controller
     [PermissionAuthorize("fees.collect")]
     public async Task<IActionResult> Collect(int? studentId)
     {
+        if (studentId.HasValue && !await CanViewStudentAsync(studentId.Value)) return Forbid();
         await LoadOptionsAsync();
         return View(new CollectPaymentViewModel { StudentId = studentId.GetValueOrDefault() });
     }
@@ -97,6 +98,7 @@ public sealed class FinanceController : Controller
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "SuperAdmin,Admin,Accountant")]
     public async Task<IActionResult> Collect(CollectPaymentViewModel input)
     {
+        if (!await CanViewStudentAsync(input.StudentId)) return Forbid();
         var student = await _db.Students.AsNoTracking().SingleOrDefaultAsync(s => s.Id == input.StudentId);
         var fee = await _db.Fees.AsNoTracking().SingleOrDefaultAsync(f => f.Id == input.FeeId);
         if (student == null) ModelState.AddModelError(nameof(input.StudentId), "Select a valid student.");
@@ -151,6 +153,8 @@ public sealed class FinanceController : Controller
             .Include(i => i.AcademicYear)
             .Include(i => i.Lines)
             .AsQueryable();
+        var allowedStudentIds = FinancialRecordScope.Students(_db, User).Select(student => student.Id);
+        query = query.Where(invoice => allowedStudentIds.Contains(invoice.StudentId));
         if (!string.IsNullOrWhiteSpace(request.Search))
             query = query.Where(i =>
                 i.InvoiceNumber.Contains(request.Search) ||
@@ -161,7 +165,7 @@ public sealed class FinanceController : Controller
         if (!string.IsNullOrWhiteSpace(request.Status) &&
             Enum.TryParse<InvoiceStatus>(request.Status, true, out var status))
             query = query.Where(i => i.Status == status);
-        ViewBag.Students = await _db.Students.AsNoTracking()
+        ViewBag.Students = await FinancialRecordScope.Students(_db, User)
             .Where(s => !s.IsArchived).OrderBy(s => s.FullName).Take(2000).ToListAsync(cancellationToken);
         ViewBag.Years = await _db.AcademicYears.AsNoTracking()
             .Where(y => !y.IsArchived).OrderByDescending(y => y.StartsOn).ToListAsync(cancellationToken);
@@ -179,6 +183,7 @@ public sealed class FinanceController : Controller
         List<int> feeIds,
         CancellationToken cancellationToken)
     {
+        if (!await CanViewStudentAsync(studentId)) return Forbid();
         try
         {
             var invoice = await _invoices.IssueAsync(
@@ -274,6 +279,7 @@ public sealed class FinanceController : Controller
     }
 
     [Authorize(Roles = "SuperAdmin,Admin,Accountant")]
+    [PermissionAuthorize("reports.export")]
     public async Task<FileResult> Export(
         [FromQuery] ListQuery request,
         FinancialTransactionType? type,
@@ -307,6 +313,7 @@ public sealed class FinanceController : Controller
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "SuperAdmin,Admin,Accountant")]
     public async Task<IActionResult> Reverse(long id, string reason)
     {
+        if (!await BaseTransactionQuery().AnyAsync(transaction => transaction.Id == id)) return Forbid();
         if (string.IsNullOrWhiteSpace(reason)) return BadRequest("A reversal reason is required.");
         FinancialTransaction reversal;
         try
@@ -336,6 +343,7 @@ public sealed class FinanceController : Controller
     public async Task<IActionResult> Refund(
         long id, decimal amount, string reason, string idempotencyKey)
     {
+        if (!await BaseTransactionQuery().AnyAsync(transaction => transaction.Id == id)) return Forbid();
         if (string.IsNullOrWhiteSpace(reason))
             return BadRequest("A refund reason is required.");
         try
@@ -375,6 +383,7 @@ public sealed class FinanceController : Controller
         decimal amount,
         string reason)
     {
+        if (!await CanViewStudentAsync(studentId)) return Forbid();
         if (string.IsNullOrWhiteSpace(reason))
             return BadRequest("An adjustment reason is required.");
         try
@@ -393,14 +402,7 @@ public sealed class FinanceController : Controller
 
     private async Task<bool> CanViewStudentAsync(int studentId)
     {
-        if (User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Accountant")) return true;
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (User.IsInRole("Student"))
-            return await _db.Students.AnyAsync(s => s.Id == studentId && s.UserId == userId);
-        if (User.IsInRole("Guardian"))
-            return await _db.GuardianStudentLinks.AnyAsync(l =>
-                l.StudentId == studentId && l.CanViewFinance && l.GuardianProfile.UserId == userId);
-        return false;
+        return await FinancialRecordScope.Students(_db, User).AnyAsync(student => student.Id == studentId);
     }
 
     private async Task RefreshAllocatedInvoicesAsync(
@@ -441,7 +443,7 @@ public sealed class FinanceController : Controller
 
     private async Task LoadOptionsAsync()
     {
-        ViewBag.Students = await _db.Students.AsNoTracking().Include(s => s.Class)
+        ViewBag.Students = await FinancialRecordScope.Students(_db, User).Include(s => s.Class)
             .OrderBy(s => s.FullName).ToListAsync();
         ViewBag.Fees = await _db.Fees.AsNoTracking().Include(f => f.Class)
             .OrderBy(f => f.Class!.Name).ThenBy(f => f.Term).ToListAsync();
@@ -449,7 +451,9 @@ public sealed class FinanceController : Controller
 
     private IQueryable<FinancialTransaction> BaseTransactionQuery()
     {
+        var students = FinancialRecordScope.Students(_db, User).Select(student => student.Id);
         return _db.FinancialTransactions.AsNoTracking()
+            .Where(transaction => students.Contains(transaction.StudentId))
             .Include(t => t.Student).ThenInclude(s => s.Class)
             .Include(t => t.Fee).AsQueryable();
     }

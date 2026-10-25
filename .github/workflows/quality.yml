@@ -1,0 +1,28 @@
+name: Application quality gates
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # No deployment credentials or license material is exposed to PR code.
+      # Release fails honestly until an approved licensed build environment exists.
+      - name: Restore, compile, test, scan and prepare local artifact
+        shell: pwsh
+        run: ./scripts/Verify-Quality.ps1 -Publish
+      # SQL Express, browser E2E and visual acceptance remain separate mandatory
+      # release gates; this hosted job does not claim those environments exist.

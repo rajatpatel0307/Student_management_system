@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Student_Management_System.Models;
@@ -61,6 +61,13 @@ SmtpDevelopmentConfiguration.DisableIncompletePlaceholderConfiguration(
 builder.Services.AddControllersWithViews(options =>
 {
     options.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute());
+    // Dynamic responses can contain student data, financial records or MFA keys.
+    // Keep them out of shared/browser caches; static assets retain normal caching.
+    options.Filters.Add(new Microsoft.AspNetCore.Mvc.ResponseCacheAttribute
+    {
+        NoStore = true,
+        Location = Microsoft.AspNetCore.Mvc.ResponseCacheLocation.None
+    });
     options.Filters.Add<ConcurrencyExceptionFilter>();
     options.Filters.Add<DashboardSetupExceptionFilter>();
     options.Filters.Add<AdminPermissionParityFilter>();
@@ -90,11 +97,16 @@ builder.Services.AddScoped<StaffRepository>();
 builder.Services.AddScoped<StaffAccessService>();
 builder.Services.AddScoped<StaffManagementService>();
 builder.Services.AddScoped<Student_Management_System.Modules.Registrar.CertificateService>();
-builder.Services.AddScoped<IAuthorizationHandler, GranularPermissionHandler>();
+
 builder.Services.AddScoped<ICampusScopeService, CampusScopeService>();
 builder.Services.AddScoped<IResultService, ResultService>();
 builder.Services.AddScoped<IFinanceLedgerService, FinanceLedgerService>();
 builder.Services.AddScoped<IStudentAccountService, StudentAccountService>();
+builder.Services.AddScoped<ActivationDeliveryService>();
+builder.Services.AddSingleton<IValidateOptions<ActivationDeliveryOptions>, ActivationDeliveryOptionsValidator>();
+builder.Services.AddOptions<ActivationDeliveryOptions>()
+    .Bind(builder.Configuration.GetSection("ActivationDelivery"))
+    .ValidateOnStart();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IAcademicStructureService, AcademicStructureService>();
 builder.Services.AddScoped<IApprovalWorkflowService, ApprovalWorkflowService>();
@@ -311,36 +323,7 @@ builder.Services.Configure<SecurityStampValidatorOptions>(options =>
     options.ValidationInterval = TimeSpan.Zero;
 });
 
-builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("AdminMfaOnly", policy =>
-        policy.RequireRole("SuperAdmin", "Admin"))
-    .AddPolicy("ConfigurationHealth", policy =>
-        policy.RequireRole("SuperAdmin"))
-    .AddPolicy(ProfilePolicies.ImageEditSelf, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.ProfileImageEditSelf)))
-    .AddPolicy(ProfilePolicies.StudentEdit, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.ProfileStudentEdit)))
-    .AddPolicy(ProfilePolicies.ProfessorEdit, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.ProfileProfessorEdit)))
-    .AddPolicy(ProfilePolicies.HodEdit, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.ProfileHodEdit)))
-    .AddPolicy(ProfilePolicies.OperationalStaffEdit, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.ProfileOperationalStaffEdit)))
-    .AddPolicy(ProfilePolicies.AdminEdit, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.ProfileAdminEdit)))
-    .AddPolicy(ProfilePolicies.SuperAdminEdit, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.ProfileSuperAdminEdit)))
-    .AddPolicy(ProfilePolicies.ProfessorViewDepartment, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.ProfessorViewDepartment)))
-    .AddPolicy(ProfilePolicies.ProfessorManageDepartment, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.ProfessorManageDepartment)))
-    .AddPolicy(DashboardPolicies.View, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.DashboardView)))
-    .AddPolicy(DashboardPolicies.Export, policy =>
-        policy.AddRequirements(new PermissionRequirement(PermissionKeys.DashboardExport)))
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build());
+builder.Services.AddEduFlowAuthorization();
 
 // 🔐 Cookie config (ONLY ONCE)
 builder.Services.ConfigureApplicationCookie(options =>
@@ -351,8 +334,27 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Lax;
     options.ExpireTimeSpan = TimeSpan.FromHours(8);
-    options.Cookie.MaxAge = TimeSpan.FromHours(8);
     options.SlidingExpiration = true;
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.Headers.CacheControl = "no-store";
+        }
+        else context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.Headers.CacheControl = "no-store";
+        }
+        else context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
 });
 
 var app = builder.Build();
@@ -505,12 +507,7 @@ if (bootstrapOnly || initializeDevelopment)
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-    var roles = new[]
-    {
-        "SuperAdmin", "Admin", "HOD", "Professor", "Student", "Guardian",
-        "Accountant", "Librarian", "AdmissionOfficer", "ExaminationOfficer",
-        "TransportManager", "HostelManager", "Registrar", "PlacementOfficer", "Employee"
-    };
+    var roles = ApplicationRoles.All;
 
     // 🔥 Create roles
     foreach (var role in roles)
@@ -606,36 +603,7 @@ if (bootstrapOnly || initializeDevelopment)
         db,
         permissionCatalog);
 
-    var defaultRolePermissions = new Dictionary<string, string[]>
-    {
-        ["Registrar"] = ["registrar.manage", "admission.view", "admission.create", "admission.review", "admission.approve", "documents.generate", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
-        ["Admin"] = [
-            "staff.manage", "transport.manage", "hostel.manage", "registrar.manage", "finance.expenses.manage", "library.manage",
-            "student.view", "student.create", "student.update", "student.promote",
-            "attendance.view", "marks.view", "marks.approve",
-            "admission.view", "admission.create", "admission.review", "admission.approve",
-            "fees.view", "fees.collect", "reports.view", "reports.export",
-            "notifications.send", "academic.structure.manage",
-            "student.lifecycle.manage", "student.lifecycle.approve",
-            "timetable.manage", "communications.manage", "approvals.manage",
-            "finance.invoice", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport,
-            PermissionKeys.ProfileHodEdit, PermissionKeys.ProfileOperationalStaffEdit,
-            "ManageDepartments", "ManageTeachers",
-            "ManageStudents", "ManageAcademics", "ViewReports", "ManageAnnouncements"
-        ],
-        ["AdmissionOfficer"] = ["admission.view", "admission.create", "admission.review", "admission.approve", "communications.manage", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
-        ["Accountant"] = ["finance.expenses.manage", "fees.view", "fees.collect", "fees.adjust", "fees.refund", "finance.invoice", "approvals.manage", "reports.view", "reports.export", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
-        ["Librarian"] = ["library.manage", "library.issue", "library.return", "library.audit", "reports.view", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
-        ["ExaminationOfficer"] = ["marks.view", "marks.approve", "results.publish", "approvals.manage", "reports.view", "reports.export", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
-        ["HOD"] = ["student.view", "student.lifecycle.approve", "attendance.view", "attendance.create", "attendance.correct", "attendance.approve", "marks.view", "marks.enter", "marks.approve", "approvals.manage", "reports.view", "reports.export", PermissionKeys.ProfileImageEditSelf, PermissionKeys.ProfileStudentEdit, PermissionKeys.ProfileProfessorEdit, PermissionKeys.ProfessorViewDepartment, PermissionKeys.ProfessorManageDepartment, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
-        ["Professor"] = ["student.view", "attendance.view", "attendance.create", "marks.view", "marks.enter", "timetable.manage", "reports.export", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView, PermissionKeys.DashboardExport],
-        ["Student"] = ["attendance.view", "marks.view", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
-        ["Guardian"] = ["attendance.view", "marks.view", "fees.view", PermissionKeys.ProfileImageEditSelf],
-        ["TransportManager"] = ["transport.manage", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
-        ["HostelManager"] = ["hostel.manage", PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
-        ["PlacementOfficer"] = [PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView],
-        ["Employee"] = [PermissionKeys.ProfileImageEditSelf, PermissionKeys.DashboardView]
-    };
+    var defaultRolePermissions = DefaultRolePermissions.All;
     await DatabaseBootstrapOperations.EnsureRolePermissionsAsync(
         db,
         defaultRolePermissions);

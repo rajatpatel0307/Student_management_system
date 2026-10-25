@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Student_Management_System.Models;
@@ -39,9 +39,10 @@ public class AttendanceController : Controller
     {
         if (!await CanAccessClass(classId)) return Forbid();
 
-        var students = await _context.Students
+        var students = await (await AcademicRecordScope.EntryStudentsAsync(_context, User))
             .Include(s => s.Section)
-            .Where(s => s.ClassId == classId)
+            .Where(s => s.ClassId == classId && !s.IsArchived)
+            .OrderBy(s => s.FullName).ThenBy(s => s.Id)
             .ToListAsync();
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         ViewBag.Class = await _context.Classes.FindAsync(classId);
@@ -90,8 +91,10 @@ public class AttendanceController : Controller
         {
             return Conflict(ex.Message);
         }
+        catch (UnauthorizedAccessException) { return Forbid(); }
 
         TempData["Success"] = "Attendance submitted successfully.";
+        TempData["ClearDraft"] = $"attendance:{classIds[0]}:{date:yyyy-MM-dd}";
         return RedirectToAction("SelectClass");
     }
 
@@ -100,7 +103,7 @@ public class AttendanceController : Controller
     public async Task<IActionResult> History(int classId)
     {
         if (!await CanAccessClass(classId)) return Forbid();
-        var data = await _context.Attendances
+        var data = await (await AcademicRecordScope.AttendanceAsync(_context, _context.Attendances, User))
             .Include(a => a.Student)
             .Where(a => a.Student.ClassId == classId)
             .OrderByDescending(a => a.Date)
@@ -113,11 +116,11 @@ public class AttendanceController : Controller
     public async Task<IActionResult> StudentStats(int classId)
     {
         if (!await CanAccessClass(classId)) return Forbid();
-        var students = await _context.Students.AsNoTracking()
+        var students = await (await AcademicRecordScope.EntryStudentsAsync(_context, User)).AsNoTracking()
             .Where(s => s.ClassId == classId)
             .Select(s => new { s.Id, s.FullName }).ToListAsync();
         var percentages = await _attendance.GetPercentagesAsync(
-            _context.Attendances.AsNoTracking().Where(a => a.Student.ClassId == classId));
+            await AcademicRecordScope.AttendanceAsync(_context, _context.Attendances.AsNoTracking().Where(a => a.Student.ClassId == classId), User));
         var result = students.Select(s => new
         {
             Name = s.FullName,
@@ -133,7 +136,7 @@ public class AttendanceController : Controller
         if (month is < 1 or > 12) return BadRequest();
         var reportYear = year ?? DateTime.Today.Year;
         if (reportYear is < 2000 or > 2200) return BadRequest();
-        var data = await _context.Attendances
+        var data = await (await AcademicRecordScope.AttendanceAsync(_context, _context.Attendances, User))
             .Include(a => a.Student)
             .Where(a => a.Student.ClassId == classId &&
                         a.Date.Month == month && a.Date.Year == reportYear)
@@ -152,6 +155,7 @@ public class AttendanceController : Controller
             .SingleOrDefaultAsync(a => a.Id == id);
         if (attendance == null) return NotFound();
         if (!await CanAccessClass(attendance.Student.ClassId)) return Forbid();
+        if (!await CanReadAttendanceAsync(attendance)) return Forbid();
         if (await _context.AttendanceCorrections.AnyAsync(c =>
                 c.AttendanceId == id && c.Status == ApprovalStatus.Pending))
             return Conflict("A correction request is already pending.");
@@ -181,6 +185,8 @@ public class AttendanceController : Controller
         if (correction.Status != ApprovalStatus.Pending)
             return Conflict("This request has already been reviewed.");
         if (!await CanAccessClass(correction.Attendance.Student.ClassId)) return Forbid();
+        if (!await CanReadAttendanceAsync(correction.Attendance)) return Forbid();
+        if (approve && correction.Attendance.Status != correction.PreviousStatus) return Conflict("The attendance record changed after this request. Submit a new correction.");
         correction.Status = approve ? ApprovalStatus.Approved : ApprovalStatus.Rejected;
         correction.ReviewedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         correction.ReviewComment = comment?.Trim();
@@ -208,6 +214,7 @@ public class AttendanceController : Controller
         var attendance = await _context.Attendances.Include(a => a.Student).SingleOrDefaultAsync(a => a.Id == id);
         if (attendance == null) return NotFound();
         if (!await CanAccessClass(attendance.Student.ClassId)) return Forbid();
+        if (!await CanReadAttendanceAsync(attendance)) return Forbid();
         if (!User.IsInRole("HOD") && attendance.Date < DateTime.Today.AddDays(-1)) return Forbid();
         attendance.Status = status; attendance.UpdatedUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync();
@@ -239,17 +246,21 @@ public class AttendanceController : Controller
             .Include(a => a.Subject).SingleOrDefaultAsync(a => a.Id == id);
         if (attendance == null) return NotFound();
         if (!await CanAccessClass(attendance.Student.ClassId)) return Forbid();
+        if (!await CanReadAttendanceAsync(attendance)) return Forbid();
         if (!User.IsInRole("HOD") && attendance.Date < DateTime.Today.AddDays(-1)) return Forbid();
         return View(attendance);
     }
 
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "HOD,Professor")]
-    public async Task<IActionResult> Edit(int id, string status, string? lecture)
+    public async Task<IActionResult> Edit(int id, string status, string? lecture, DateTime? expectedUpdatedUtc = null, bool checkRevision = false)
     {
         var attendance = await _context.Attendances.Include(a => a.Student)
             .SingleOrDefaultAsync(a => a.Id == id);
         if (attendance == null) return NotFound();
         if (!await CanAccessClass(attendance.Student.ClassId)) return Forbid();
+        if (!await CanReadAttendanceAsync(attendance)) return Forbid();
+        if (lecture?.Length > 100) return BadRequest("Lecture must be at most 100 characters.");
+        if (checkRevision) _context.Entry(attendance).Property(a => a.UpdatedUtc).OriginalValue = expectedUpdatedUtc;
         if (!User.IsInRole("HOD") && attendance.Date < DateTime.Today.AddDays(-1)) return Forbid();
         if (status is not ("Present" or "Absent" or "Late" or "Excused"))
         {
@@ -259,7 +270,11 @@ public class AttendanceController : Controller
         attendance.Status = status;
         attendance.Lecture = string.IsNullOrWhiteSpace(lecture) ? null : lecture.Trim();
         attendance.UpdatedUtc = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        try { await _context.SaveChangesAsync(); }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict("Attendance changed while you were editing. Reload the record and try again.");
+        }
         await _audit.RecordAsync("Updated attendance record", nameof(Attendance), id);
         TempData["Success"] = "Attendance updated successfully.";
         return RedirectToAction(nameof(Details), new { id });
@@ -276,10 +291,7 @@ public class AttendanceController : Controller
 
     private async Task<bool> CanReadAttendanceAsync(Attendance attendance)
     {
-        if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin")) return true;
-        var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (User.IsInRole("Student")) return attendance.Student.UserId == uid;
-        return await CanAccessClass(attendance.Student.ClassId);
+        return await (await AcademicRecordScope.AttendanceAsync(_context, _context.Attendances, User)).AnyAsync(record => record.Id == attendance.Id);
     }
 
     [Authorize(Roles = "Admin,SuperAdmin,HOD,Professor")]
@@ -292,6 +304,7 @@ public class AttendanceController : Controller
             .Include(a => a.Student).ThenInclude(s => s.Section)
             .Include(a => a.Student).ThenInclude(s => s.Department)
             .Include(a => a.Subject).Include(a => a.Teacher).AsQueryable();
+        query = await AcademicRecordScope.AttendanceAsync(_context, query, User);
         if (User.IsInRole("HOD"))
             query = query.Where(a => a.Student.Department!.Teachers.Any(t => t.UserId == uid && t.TeacherType == TeacherType.HOD));
         else if (User.IsInRole("Professor"))
@@ -323,7 +336,7 @@ public class AttendanceController : Controller
     }
 
     [Authorize(Roles = "Admin,SuperAdmin,HOD,Professor")]
-    public async Task<IActionResult> Sessions(CancellationToken cancellationToken)
+    public async Task<IActionResult> Sessions(CancellationToken cancellationToken, int page = 1, int pageSize = 20)
     {
         var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var query = _context.AttendanceSessions.AsNoTracking()
@@ -335,8 +348,11 @@ public class AttendanceController : Controller
                 t.UserId == uid && t.TeacherType == TeacherType.HOD));
         else if (User.IsInRole("Professor"))
             query = query.Where(s => s.Teacher.UserId == uid);
+        var visibleIds = (await AcademicRecordScope.AttendanceAsync(_context, _context.Attendances, User)).Select(record => record.Id);
+        if (!User.IsInRole("SuperAdmin")) query = query.Where(session => session.Records.Any() && session.Records.All(record => visibleIds.Contains(record.Id)));
         return View(await query.OrderByDescending(s => s.SessionDate)
-            .ThenByDescending(s => s.SubmittedUtc).Take(250).ToListAsync(cancellationToken));
+            .ThenByDescending(s => s.SubmittedUtc).ThenByDescending(s => s.Id)
+            .ToPagedResultAsync(new ListQuery { Page = page, PageSize = pageSize }, cancellationToken));
     }
 
     [PermissionAuthorize("attendance.approve")]
@@ -351,6 +367,9 @@ public class AttendanceController : Controller
             .SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
         if (session == null) return NotFound();
         if (!await CanAccessClass(session.ClassId)) return Forbid();
+        var visibleIds = (await AcademicRecordScope.AttendanceAsync(_context, _context.Attendances, User)).Select(record => record.Id);
+        if (await _context.Attendances.AnyAsync(record => record.AttendanceSessionId == id && !visibleIds.Contains(record.Id), cancellationToken) ||
+            !await _context.Attendances.AnyAsync(record => record.AttendanceSessionId == id, cancellationToken)) return Forbid();
         if (session.Status != AttendanceSessionStatus.Submitted)
             return Conflict("Only submitted attendance sessions can be approved.");
         ConcurrencyToken.Apply(_context, session, rowVersion);
@@ -376,6 +395,7 @@ public class AttendanceController : Controller
             .Include(a => a.Student).ThenInclude(s => s.Section)
             .Include(a => a.Student).ThenInclude(s => s.Department)
             .Include(a => a.Subject).Include(a => a.Teacher).AsQueryable();
+        query = await AcademicRecordScope.AttendanceAsync(_context, query, User);
         if (User.IsInRole("HOD"))
             query = query.Where(a => a.Student.Department!.Teachers.Any(t =>
                 t.UserId == uid && t.TeacherType == TeacherType.HOD));

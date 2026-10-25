@@ -1,5 +1,27 @@
 # Repository route inventory
 
+Phase 4 preserves the route/action set and public contracts. New invitation
+recovery uses an internal outbox event, not a new endpoint. The 353-action policy
+matrix was re-executed; successful workflow coverage remains explicitly narrower.
+See [Phase 4](IMPLEMENTATION_PHASE4.md) and
+[FINAL_ACCEPTANCE_MATRIX.md](FINAL_ACCEPTANCE_MATRIX.md).
+
+Phase 3 preserves existing routes. Attendance Sessions accepts optional
+`page`/`pageSize`; Edit accepts original `expectedUpdatedUtc` and `checkRevision`;
+Reports Index accepts `savedReportId` for owned/shared definitions. New views do
+not create new endpoints. Record scopes and export permissions are tightened.
+See [Phase 3](IMPLEMENTATION_PHASE3.md), the
+[353-action policy matrix](ACTION_POLICY_MATRIX_PHASE3.md) and
+[executed role boundaries](ROLE_BOUNDARY_MATRIX_PHASE3.md). Policy eligibility is
+distinct from successful record-level runtime acceptance.
+
+Phase 2 retains the route set. Admissions and Guardians Index accept optional
+`page`/`pageSize`; student Details accepts independent `attendancePage`/`marksPage`.
+Marks entry/edit accept optional original `ExpectedUpdatedUtc` values, while
+server concurrency checks always apply. Cookie challenges/denials for `/api`
+now return HTTP 401/403; MVC redirects are preserved. See
+[the continuation report](IMPLEMENTATION_PHASE2.md) for verification and limits.
+
 Generated from controller declarations on 24 October 2026. Static inventory only; route candidates are not proof of runtime reachability. Conventional routes use /{controller}/{action}/{id?}; combine attribute routes and HTTP verb attributes where present. Filters, policies, middleware, and record-level query checks must also be reviewed.
 
 | Controller / file | Class attributes | Actions (declared return type identifies action candidates) |

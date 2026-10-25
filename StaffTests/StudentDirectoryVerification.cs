@@ -31,7 +31,7 @@ internal static class StudentDirectoryVerification
         };
         var build = typeof(StudentsController).GetMethod("BuildDirectoryQueryAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
         async Task<IQueryable<Student>> Query(ListQuery request) =>
-            (await (Task<IQueryable<Student>?>)build.Invoke(controller, new object[] { request, CancellationToken.None })!)!;
+            (await (Task<IQueryable<Student>?>)build.Invoke(controller, new object[] { request, CancellationToken.None, new AttendanceWeights(0.5m, 1m) })!)!;
 
         var sql = (await Query(new ListQuery { Search = "987", DepartmentId = 3, ClassId = 4, SectionId = 5, SemesterId = 6 })).ToQueryString();
         check(sql.Contains("[IsArchived] = CAST(0 AS bit)"), "Directory/export SQL must exclude archived students.");

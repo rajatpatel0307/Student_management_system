@@ -5,6 +5,14 @@ namespace Student_Management_System.Services;
 
 public static class StudentRecordScope
 {
+    public static IQueryable<Student> ForCampuses(ApplicationDbContext db, IQueryable<Student> students, string? actor)
+    {
+        if (string.IsNullOrWhiteSpace(actor)) return students.Where(_ => false);
+        var campuses = db.UserCampusMemberships.Where(m => m.UserId == actor && m.IsActive && m.Campus.IsActive && m.Campus.Institution.IsActive)
+            .Select(m => m.CampusId);
+        return students.Where(student => student.UserId != null && db.UserCampusMemberships.Any(m =>
+            m.UserId == student.UserId && m.IsActive && campuses.Contains(m.CampusId)));
+    }
     // Directory, profile, photo, and transcript must share the same HOD boundary.
     public static IQueryable<Student> ForHod(ApplicationDbContext db,
         IQueryable<Student> students, string? actorId, int departmentId)

@@ -24,9 +24,23 @@ public sealed class ReportsController : Controller
 
     public async Task<IActionResult> Index(
         [FromQuery] ReportCenterQuery query,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, long? savedReportId = null)
     {
+        var available = ReportingService.AvailableReportTypes(User);
+        if (available.Count == 0) return Forbid();
+        if (savedReportId.HasValue)
+        {
+            var actor = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var saved = await _db.SavedReports.AsNoTracking().SingleOrDefaultAsync(report => report.Id == savedReportId &&
+                (report.OwnerUserId == actor || report.IsShared), cancellationToken);
+            if (saved == null) return NotFound();
+            try { query = JsonSerializer.Deserialize<ReportCenterQuery>(saved.FilterJson) ?? new ReportCenterQuery(); }
+            catch (JsonException) { return BadRequest("This saved filter is invalid. Save a new filter."); }
+        }
+        else if (!Request.Query.ContainsKey("ReportType") && query.ReportType == "Enrollment" && !available.Contains(query.ReportType))
+            query.ReportType = available[0];
         query.Normalize();
+        if (query.From > query.To) return BadRequest("The start date must not be after the end date.");
         ReportDataset? dataset = null;
         try
         {
@@ -38,6 +52,7 @@ public sealed class ReportsController : Controller
             return Forbid();
         }
         ViewBag.Query = query;
+        ViewBag.AvailableReports = available;
         ViewBag.Dataset = dataset;
         ViewBag.Departments = await _db.Departments.AsNoTracking()
             .Where(d => !d.IsArchived).OrderBy(d => d.Name).ToListAsync(cancellationToken);
@@ -145,6 +160,7 @@ public sealed class ReportsController : Controller
         return RedirectToAction(nameof(Index), query);
     }
 
+    [PermissionAuthorize("reports.export")]
     public Task<IActionResult> StudentsExcel(CancellationToken cancellationToken) =>
         Export(new ReportCenterQuery
         {

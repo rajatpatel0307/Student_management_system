@@ -9,11 +9,13 @@
     <div class="page-actions"><a asp-action="SelectClass" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i> Change class</a></div>
 </div>
 
+@if(Model.Count == 0){<section class="card empty-state"><h2>No active students in this class</h2><p>Select another authorized class or check its active enrollment and campus assignments.</p><a asp-action="SelectClass" class="btn btn-outline-secondary">Choose class</a></section>}
+else{
 <form method="post" id="attendanceForm">
     <section class="card section-card mb-3">
         <div class="attendance-toolbar">
             <div><label class="form-label required" for="attendanceSubject">Subject</label><select id="attendanceSubject" name="subjectId" class="form-select" required><option value="">Select subject</option>@foreach (var subject in subjects) { <option value="@subject.Id">@subject.Name</option> }</select></div>
-            <div><label class="form-label" for="lecture">Lecture / period</label><input id="lecture" name="lecture" class="form-control" maxlength="100" placeholder="e.g. Period 2" /></div>
+            <div><label class="form-label required" for="lecture">Lecture / period</label><input id="lecture" name="lecture" class="form-control" maxlength="100" placeholder="e.g. Period 2" required /></div>
             <div><label class="form-label" for="attendanceDate">Date</label><input id="attendanceDate" class="form-control" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" readonly /></div>
             <div><label class="form-label" for="studentSearch">Find student</label><input id="studentSearch" class="form-control" type="search" placeholder="Search name or ID…" /></div>
         </div>
@@ -75,14 +77,18 @@
         </div>
     </div>
 </form>
+}
 
 @section Scripts {
 <script nonce="@(ViewContext.HttpContext.Items["CspNonce"])">
 (() => {
     const form = document.getElementById('attendanceForm');
+    if (!form) return;
     const rows = [...document.querySelectorAll('[data-student-row]')];
     const search = document.getElementById('studentSearch');
     const draftKey = `attendance:@ViewBag.Class?.Id:@DateTime.Today.ToString("yyyy-MM-dd")`;
+    const studentIds = [...form.querySelectorAll('input[name$=".StudentId"]')];
+    const roster = studentIds.map(input => input.value).join('|');
     function refresh() {
         const selected = [...form.querySelectorAll('input[type=radio]:checked')];
         document.getElementById('attendanceCompleted').textContent = selected.length;
@@ -100,20 +106,23 @@
         rows.forEach(row => row.hidden = !row.textContent.toLowerCase().includes(value));
     });
     document.getElementById('saveAttendanceDraft').addEventListener('click', () => {
-        const values = [...form.querySelectorAll('input[type=radio]:checked')].map(x => ({ name: x.name, value: x.value }));
-        localStorage.setItem(draftKey, JSON.stringify({ values, subjectId: form.subjectId.value, lecture: form.lecture.value }));
-        window.smsUi.showToast('Attendance draft saved on this device.', 'success');
+        const values = studentIds.map(input => ({ studentId: input.value, status: form.querySelector(`input[name="${input.name.replace('.StudentId', '.Status')}"]:checked`)?.value }));
+        const saved = window.EduFlowDrafts.save(draftKey, roster, { values, subjectId: form.subjectId.value, lecture: form.lecture.value });
+        window.smsUi.showToast(saved ? 'Attendance draft saved for this account in this tab for up to four hours.' : 'Draft storage is unavailable. Keep this form open until you save.', saved ? 'success' : 'warning');
     });
     try {
-        const draft = JSON.parse(localStorage.getItem(draftKey));
+        const draft = window.EduFlowDrafts.load(draftKey, roster);
         if (draft) {
             form.subjectId.value = draft.subjectId || '';
             form.lecture.value = draft.lecture || '';
-            draft.values.forEach(item => form.querySelector(`input[name="${CSS.escape(item.name)}"][value="${item.value}"]`)?.click());
+            draft.values.forEach(item => {
+                const id = studentIds.find(input => input.value === item.studentId);
+                if (id && ['Present','Absent','Late','Excused'].includes(item.status))
+                    form.querySelector(`input[name="${id.name.replace('.StudentId', '.Status')}"][value="${item.status}"]`)?.click();
+            });
             window.smsUi.showToast('Your saved attendance draft was restored.', 'info');
         }
     } catch {}
-    form.addEventListener('submit', () => localStorage.removeItem(draftKey));
     refresh();
 })();
 </script>

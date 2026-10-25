@@ -22,8 +22,7 @@
         ? [...sidebar.querySelectorAll(".brand-link, .sidebar-nav, .sidebar-footer")]
         : [];
 
-    root.dataset.theme = "light";
-    localStorage.removeItem("sms-theme");
+    const preferences = window.EduFlowPreferences;
 
     function updateSidebarControl(isExpanded) {
         sidebarToggle?.setAttribute("aria-expanded", String(isExpanded));
@@ -51,7 +50,7 @@
     }
 
     function restoreDesktopSidebar() {
-        const collapsed = localStorage.getItem("sms-sidebar-collapsed") === "true";
+        const collapsed = preferences?.get("sms-sidebar-collapsed") === "true";
         root.classList.toggle("sidebar-collapsed", collapsed);
         sidebar?.classList.remove("open");
         setSidebarPanelsVisible(true);
@@ -66,7 +65,7 @@
         if (desktopSidebar.matches) {
             const collapsed = !root.classList.contains("sidebar-collapsed");
             root.classList.toggle("sidebar-collapsed", collapsed);
-            localStorage.setItem("sms-sidebar-collapsed", String(collapsed));
+            preferences?.set("sms-sidebar-collapsed", String(collapsed));
             updateSidebarControl(!collapsed);
             return;
         }
@@ -112,7 +111,7 @@
                 if (!desktopSidebar.matches || !root.classList.contains("sidebar-collapsed")) return;
                 event.preventDefault();
                 root.classList.remove("sidebar-collapsed");
-                localStorage.setItem("sms-sidebar-collapsed", "false");
+                preferences?.set("sms-sidebar-collapsed", "false");
                 updateSidebarControl(true);
                 details.open = true;
             });

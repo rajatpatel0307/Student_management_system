@@ -4,6 +4,7 @@ namespace Student_Management_System.Models;
 
 public sealed class AdmissionDashboardViewModel
 {
+    public PagedResult<AdmissionApplication> Pagination { get; init; } = new();
     public IReadOnlyList<AdmissionApplication> Applications { get; init; } = [];
     public int Total { get; init; }
     public int New { get; init; }

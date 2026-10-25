@@ -36,22 +36,22 @@ namespace Student_Management_System.Controllers
 
         // ================= LOGIN =================
         [AllowAnonymous]
-        public IActionResult Login()
+        public IActionResult Login(string? returnUrl = null)
         {
-            return View();
+            return View(new LoginViewModel { ReturnUrl = returnUrl });
         }
 
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("authentication")]
-        public async Task<IActionResult> Login(string email, string password, string? returnUrl = null)
+        public async Task<IActionResult> Login(LoginViewModel input)
         {
-            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
-            {
-                ViewBag.Error = "Email and Password required";
-                return View();
-            }
+            if (!ModelState.IsValid) return View(input);
+
+            var email = input.Email.Trim();
+            var password = input.Password;
+            var returnUrl = input.ReturnUrl;
 
             var user = await _userManager.FindByEmailAsync(email)
                 ?? await _userManager.FindByNameAsync(email);
@@ -59,13 +59,13 @@ namespace Student_Management_System.Controllers
             {
                 await RecordLoginAsync(email, false, null);
                 ViewBag.Error = "Invalid email or password";
-                return View();
+                return View(input);
             }
             if (!user.IsActive)
             {
                 await RecordLoginAsync(email, false, user.Id);
                 ViewBag.Error = "Invalid email or password";
-                return View();
+                return View(input);
             }
             var roles = await _userManager.GetRolesAsync(user);
             // Preserve Identity's MFA challenge for every role. MFA must never be
@@ -80,7 +80,7 @@ namespace Student_Management_System.Controllers
                 ViewBag.Error = result.IsLockedOut
                     ? "Account temporarily locked. Try again later."
                     : "Invalid email or password";
-                return View();
+                return View(input);
             }
             user.LastLoginUtc = DateTime.UtcNow;
             await _userManager.UpdateAsync(user);
@@ -197,7 +197,8 @@ namespace Student_Management_System.Controllers
             if (pendingUser == null || !pendingUser.IsActive) return RedirectToAction(nameof(Login));
             var result = await _signInManager.TwoFactorSignInAsync(
                 TokenOptions.DefaultAuthenticatorProvider,
-                (code ?? "").Replace(" ", "").Replace("-", ""), false, true);
+                (code ?? "").Replace(" ", "").Replace("-", ""),
+                isPersistent: false, rememberClient: false);
             if (!result.Succeeded)
             {
                 ModelState.AddModelError("", "Invalid or expired verification code.");
@@ -419,7 +420,7 @@ namespace Student_Management_System.Controllers
             }
             ViewData["ConfirmationTitle"] = "Check your email";
             ViewData["ConfirmationMessage"] =
-                "If the account is awaiting activation, a new link has been sent.";
+                "If the account is awaiting activation, an invitation has been queued for delivery. Delivery may be delayed.";
             return View("Confirmation");
         }
 
